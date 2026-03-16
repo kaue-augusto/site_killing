@@ -1,0 +1,108 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+@layer base {
+  :root {
+    --background: 220 20% 10%;
+    --foreground: 210 20% 95%;
+
+    --card: 220 18% 13%;
+    --card-foreground: 210 20% 95%;
+
+    --popover: 220 18% 15%;
+    --popover-foreground: 210 20% 95%;
+
+    --primary: 152 60% 45%;
+    --primary-foreground: 220 20% 10%;
+
+    --secondary: 220 15% 18%;
+    --secondary-foreground: 210 20% 90%;
+
+    --muted: 220 15% 20%;
+    --muted-foreground: 215 15% 55%;
+
+    --accent: 152 55% 40%;
+    --accent-foreground: 210 20% 98%;
+
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 210 40% 98%;
+
+    --success: 152 60% 45%;
+    --success-foreground: 220 20% 10%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 220 20% 10%;
+
+    --border: 220 15% 22%;
+    --input: 220 15% 18%;
+    --ring: 152 60% 45%;
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 220 20% 8%;
+    --sidebar-foreground: 210 15% 70%;
+    --sidebar-primary: 152 60% 45%;
+    --sidebar-primary-foreground: 220 20% 10%;
+    --sidebar-accent: 220 15% 15%;
+    --sidebar-accent-foreground: 210 20% 95%;
+    --sidebar-border: 220 15% 15%;
+    --sidebar-ring: 152 60% 45%;
+
+    --chat-sent: 152 45% 25%;
+    --chat-received: 220 15% 18%;
+    --chat-timestamp: 215 15% 50%;
+
+    --online: 152 70% 50%;
+    --offline: 0 0% 50%;
+    --away: 38 90% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: 'Inter', sans-serif;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: hsl(var(--background));
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted));
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground));
+  }
+}
+
+@layer utilities {
+  .chat-bubble-sent {
+    @apply bg-[hsl(var(--chat-sent))] text-foreground rounded-2xl rounded-br-sm;
+  }
+
+  .chat-bubble-received {
+    @apply bg-[hsl(var(--chat-received))] text-foreground rounded-2xl rounded-bl-sm;
+  }
+
+  .status-badge {
+    @apply inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-semibold rounded-full;
+  }
+
+  .glass-effect {
+    @apply backdrop-blur-md bg-card/80;
+  }
+}
