@@ -94,8 +94,8 @@ export default function Treinamento() {
 
     setIsUploadingPdf(true);
     try {
-      // Chama a função da API passando o arquivo real
-      const newPdf = await uploadPdfToGCP(file, selectedBot?.id || 'default');
+      // Chama a função da API passando o arquivo real e o slug do bot para a pasta
+      const newPdf = await uploadPdfToGCP(file, selectedBot?.id || 'default', selectedBot?.slug);
 
       // Adiciona o novo PDF na lista visual
       setUploadedPdfs(prev => [...prev, newPdf]);
@@ -500,7 +500,11 @@ export default function Treinamento() {
                             <Input
                               placeholder="Ex: Como baixar o App Portal RH?"
                               value={qa.question}
-                              onChange={(e) => updateQaPair(qa.id, 'question', e.target.value)}
+                              onChange={(e) => {
+                                // Apenas atualiza o estado local para uma digitação fluida
+                                setQaList(qaList.map(q => q.id === qa.id ? { ...q, question: e.target.value } : q));
+                              }}
+                              onBlur={(e) => updateQaPair(qa.id, 'question', e.target.value)}
                               className="mt-1 bg-background"
                             />
                           </div>
@@ -509,7 +513,11 @@ export default function Treinamento() {
                             <Textarea
                               placeholder="Para baixar no iOS, consulte..."
                               value={qa.answer}
-                              onChange={(e) => updateQaPair(qa.id, 'answer', e.target.value)}
+                              onChange={(e) => {
+                                // Apenas atualiza o estado local para uma digitação fluida
+                                setQaList(qaList.map(q => q.id === qa.id ? { ...q, answer: e.target.value } : q));
+                              }}
+                              onBlur={(e) => updateQaPair(qa.id, 'answer', e.target.value)}
                               className="mt-1 min-h-[80px] bg-background"
                             />
                           </div>

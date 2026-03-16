@@ -1,15 +1,15 @@
 import { useState, useEffect } from 'react';
 import { useBot } from '@/contexts/BotContext';
-import { 
-  fetchConversations, 
-  fetchMessages, 
+import {
+  fetchConversations,
+  fetchMessages,
   sendMessage,
   closeConversation,
   deleteConversation,
   blockContact,
   reportContact,
-  Conversation, 
-  Message 
+  Conversation,
+  Message
 } from '@/lib/api';
 import { ConversationList } from '@/components/atendimentos/ConversationList';
 import { ChatWindow } from '@/components/atendimentos/ChatWindow';
@@ -28,7 +28,7 @@ export default function Atendimentos() {
   useEffect(() => {
     const loadConversations = async () => {
       if (!selectedBot) return;
-      
+
       setIsLoadingConversations(true);
       setSelectedConversation(null);
       setMessages([]);
@@ -193,14 +193,14 @@ export default function Atendimentos() {
         onSelect={handleSelectConversation}
         isLoading={isLoadingConversations}
       />
-      
+
       <ChatWindow
         conversation={selectedConversation}
         messages={messages}
         onSendMessage={handleSendMessage}
         isLoading={isLoadingMessages}
       />
-      
+
       <ContactPanel
         conversation={selectedConversation}
         onClose={handleCloseConversation}
@@ -212,3 +212,4 @@ export default function Atendimentos() {
     </div>
   );
 }
+

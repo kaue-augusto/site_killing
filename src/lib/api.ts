@@ -416,11 +416,12 @@ export async function disconnectWhatsApp(instanceId: string, token: string): Pro
   }
 }
 
-export async function uploadPdfToGCP(file: File, botId: string): Promise<{ id: string, name: string, size: string, url: string }> {
+export async function uploadPdfToGCP(file: File, botId: string, folderName?: string): Promise<{ id: string, name: string, size: string, url: string }> {
   // Prepara o arquivo para envio
   const formData = new FormData();
   formData.append('file', file);
-  formData.append('botId', botId);
+  // Usa o folderName (slug) se existir para criar a pasta com nome amigável, caso contrário usa o botId
+  formData.append('botId', folderName || botId);
 
   try {
     // 1. Chama a Edge Function para enviar ao Google Cloud
@@ -441,7 +442,8 @@ export async function uploadPdfToGCP(file: File, botId: string): Promise<{ id: s
       .insert({
         bot_id: botId,
         nome_arquivo: file.name,
-        caminho_gcp: fileUrl
+        caminho_gcp: fileUrl,
+        tamanho: (file.size / (1024 * 1024)).toFixed(2) + 'MB'
       })
       .select()
       .single();
@@ -484,7 +486,7 @@ export async function fetchBotPdfs(botSlug: string): Promise<{ id: string, name:
   return data.map((file) => ({
     id: file.id.toString(),
     name: file.nome_arquivo || 'Documento.pdf',
-    size: 'Tamanho desconhecido', // Como não vi uma coluna 'tamanho' no erro, deixei este padrão
+    size: (file as any).tamanho || 'Tamanho desconhecido',
     url: file.caminho_gcp
   }));
 }
