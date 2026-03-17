@@ -56,7 +56,7 @@ export default function Treinamento() {
 
   // Training state Estados de Configuração do Bot
   const [selectedMode, setSelectedMode] = useState('suporte');
-  const [instructions, setInstructions] = useState(''); ''
+  const [instructions, setInstructions] = useState('');
   const [botName, setBotName] = useState(selectedBot?.name || '');
   const [tone, setTone] = useState('formal');
   const [autoTransfer, setAutoTransfer] = useState(true);
@@ -65,12 +65,12 @@ export default function Treinamento() {
   // Fontes State (NOVO)
   const [websiteUrl, setWebsiteUrl] = useState('');
   const [sourceText, setSourceText] = useState('');
-  const [qaList, setQaList] = useState([{ id: 1, question: '', answer: '' }])
+  const [qaList, setQaList] = useState<any[]>([]);
 
   // Estados de PDF (Dinâmicos)
   const [isLoadingFiles, setIsLoadingFiles] = useState(false);
   const [isUploadingPdf, setIsUploadingPdf] = useState(false);
-  const [uploadedPdfs, setUploadedPdfs] = useState<any[]>([]);;
+  const [uploadedPdfs, setUploadedPdfs] = useState<any[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // WhatsApp state
@@ -500,11 +500,7 @@ export default function Treinamento() {
                             <Input
                               placeholder="Ex: Como baixar o App Portal RH?"
                               value={qa.question}
-                              onChange={(e) => {
-                                // Apenas atualiza o estado local para uma digitação fluida
-                                setQaList(qaList.map(q => q.id === qa.id ? { ...q, question: e.target.value } : q));
-                              }}
-                              onBlur={(e) => updateQaPair(qa.id, 'question', e.target.value)}
+                              onChange={(e) => updateQaPair(qa.id, 'question', e.target.value)}
                               className="mt-1 bg-background"
                             />
                           </div>
@@ -513,11 +509,7 @@ export default function Treinamento() {
                             <Textarea
                               placeholder="Para baixar no iOS, consulte..."
                               value={qa.answer}
-                              onChange={(e) => {
-                                // Apenas atualiza o estado local para uma digitação fluida
-                                setQaList(qaList.map(q => q.id === qa.id ? { ...q, answer: e.target.value } : q));
-                              }}
-                              onBlur={(e) => updateQaPair(qa.id, 'answer', e.target.value)}
+                              onChange={(e) => updateQaPair(qa.id, 'answer', e.target.value)}
                               className="mt-1 min-h-[80px] bg-background"
                             />
                           </div>
