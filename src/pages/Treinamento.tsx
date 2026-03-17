@@ -65,6 +65,8 @@ export default function Treinamento() {
   // Fontes State (NOVO)
   const [websiteUrl, setWebsiteUrl] = useState('');
   const [sourceText, setSourceText] = useState('');
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [linksInclusos, setLinksInclusos] = useState(0);
   const [qaList, setQaList] = useState<any[]>([]);
 
   // Estados de PDF (Dinâmicos)
@@ -112,7 +114,7 @@ export default function Treinamento() {
 
   // 2. DEPOIS: O useEffect para sincronização
   useEffect(() => {
-    if (selectedBot) {
+    if (selectedBot?.id) {
       // Limpa o QR Code anterior ao trocar de bot para não confundir
       setQrCode(null);
       // Carrega os dados reais do banco
@@ -135,9 +137,23 @@ export default function Treinamento() {
 
       loadPdfs();
       // =========================================================
+      const loadQA = async () => {
+        try {
+          const { data, error } = await supabase
+            .from('bot_qa')
+            .select('*')
+            .eq('bot_id', selectedBot.id)
+            .order('created_at', { ascending: true });
+
+          if (error) throw error;
+          setQaList(data || []); // Se não houver nada, fica []
+        } catch (error: any) {
+          console.error("Erro ao carregar Q&A:", error.message);
+        }
+      };
+
+      loadQA();
     }
-
-
     // --- LÓGICA DE VERIFICAÇÃO AUTOMÁTICA (POLLING) ---
     let intervalId: NodeJS.Timeout;
 
@@ -266,19 +282,94 @@ export default function Treinamento() {
   };
 
   // Funções de apoio para Q&A
-  const addQaPair = () => {
-    setQaList([...qaList, { id: Date.now(), question: '', answer: '' }]);
+  // ADICIONAR: Cria a linha no banco primeiro para pegar o ID real
+  const addQaPair = async () => {
+    if (!selectedBot) return;
+    try {
+      const { data, error } = await supabase
+        .from('bot_qa')
+        .insert([{ bot_id: selectedBot.id, pergunta: '', resposta: '' }])
+        .select()
+        .single();
+
+      if (error) throw error;
+      setQaList([...qaList, data]); // Adiciona o objeto vindo do banco à lista
+    } catch (err) {
+      toast({ title: 'Erro', description: 'Não foi possível adicionar a linha.', variant: 'destructive' });
+    }
   };
 
-  const removeQaPair = (id: number) => {
-    setQaList(qaList.filter(qa => qa.id !== id));
+  // REMOVER: Apaga do banco e depois da tela
+  const removeQaPair = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('bot_qa')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      setQaList(qaList.filter(qa => qa.id !== id));
+      toast({ title: 'Removido', description: 'Pergunta excluída com sucesso.' });
+    } catch (err) {
+      toast({ title: 'Erro', description: 'Não foi possível excluir.', variant: 'destructive' });
+    }
   };
 
-  const updateQaPair = (id: number, field: 'question' | 'answer', value: string) => {
-    setQaList(qaList.map(qa => qa.id === id ? { ...qa, [field]: value } : qa));
+  // ATUALIZAR: Salva enquanto o usuário digita (debounce seria ideal, mas aqui é direto)
+  const updateQaPair = async (id: string, field: 'pergunta' | 'resposta', value: string) => {
+    // Atualiza localmente para ser instantâneo na tela
+    setQaList(prev => prev.map(q => q.id === id ? { ...q, [field]: value } : q));
+
+    // Salva no Supabase
+    try {
+      const { error } = await supabase
+        .from('bot_qa')
+        .update({ [field]: value })
+        .eq('id', id);
+      if (error) throw error;
+    } catch (e) {
+      console.error("Erro ao salvar campo:", field);
+    }
   };
 
+  const handleExtrairSite = async () => {
+    if (!websiteUrl) {
+      toast({ title: 'Erro', description: 'Digite uma URL válida.', variant: 'destructive' });
+      return;
+    }
+    if (!selectedBot?.id) return;
 
+    setIsExtracting(true);
+    toast({ title: 'A extrair...', description: 'Estamos a analisar o site alvo.' });
+
+    try {
+      const { data, error } = await supabase.functions.invoke('extrair-site', {
+        body: { url: websiteUrl, botId: selectedBot?.id }
+      });
+
+      if (error) throw error;
+
+      if (data.sucesso) {
+        setLinksInclusos(data.totalLinks);
+        toast({
+          title: 'Sucesso!',
+          description: data.mensagem,
+          className: 'bg-green-500 text-white'
+        });
+      } else {
+        throw new Error(data.erro);
+      }
+
+    } catch (error: any) {
+      toast({
+        title: 'Falha na Extração',
+        description: error.message || 'Não foi possível extrair os dados do site.',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsExtracting(false);
+    }
+  };
 
   return (
     <div className="p-6 space-y-6 overflow-y-auto h-full max-w-5xl">
@@ -452,21 +543,37 @@ export default function Treinamento() {
                           value={websiteUrl}
                           onChange={(e) => setWebsiteUrl(e.target.value)}
                           className="bg-secondary/50"
+                          disabled={isExtracting}
                         />
-                        <Button className="bg-[#4ade80] hover:bg-[#22c55e] text-black">Carregar</Button>
+                        <Button
+                          className="bg-[#4ade80] hover:bg-[#22c55e] text-black w-32"
+                          onClick={handleExtrairSite} // Conecta o clique à função
+                          disabled={isExtracting}
+                        >
+                          {isExtracting ? (
+                            <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Lendo...</>
+                          ) : 'Carregar'}
+                        </Button>
                       </div>
                       <p className="text-xs text-muted-foreground mt-2">Essa ação vai extrair todas as informações relevantes do site que você colocar.</p>
                     </div>
 
 
+                    {/* Animação e contagem visual da barra verde */}
                     <div className="pt-6 border-t border-border">
                       <div className="flex items-center justify-between mb-4">
                         <span className="text-sm font-medium">Links inclusos</span>
                       </div>
-                      <div className="w-full bg-secondary h-1 rounded-full mb-2">
-                        <div className="bg-[#4ade80] h-1 rounded-full w-full"></div>
+                      <div className="w-full bg-secondary h-1 rounded-full mb-2 overflow-hidden relative">
+                        <div
+                          className={`bg-[#4ade80] h-1 rounded-full transition-all duration-1000 ${isExtracting ? 'w-1/2 animate-pulse' : 'w-full'}`}
+                        ></div>
                       </div>
-                      <p className="text-xs text-right text-muted-foreground">Última extração finalizada</p>
+                      <p className="text-xs text-right text-muted-foreground">
+                        {linksInclusos > 0
+                          ? `Última extração de ${linksInclusos} endereços finalizada hoje`
+                          : 'Nenhuma extração recente'}
+                      </p>
                     </div>
                   </CardContent>
                 </Card>
@@ -483,7 +590,7 @@ export default function Treinamento() {
                     </Button>
                   </CardHeader>
                   <CardContent className="space-y-6">
-                    {qaList.map((qa, index) => (
+                    {qaList.map((qa) => (
                       <div key={qa.id} className="relative p-4 rounded-lg border border-border bg-secondary/20">
                         <Button
                           variant="ghost"
@@ -498,18 +605,18 @@ export default function Treinamento() {
                           <div>
                             <Label className="text-xs text-muted-foreground">Pergunta</Label>
                             <Input
-                              placeholder="Ex: Como baixar o App Portal RH?"
-                              value={qa.question}
-                              onChange={(e) => updateQaPair(qa.id, 'question', e.target.value)}
+                              placeholder="Ex: Qual o horário de funcionamento?"
+                              value={qa.pergunta || ''} // Usando o nome do banco
+                              onChange={(e) => updateQaPair(qa.id, 'pergunta', e.target.value)}
                               className="mt-1 bg-background"
                             />
                           </div>
                           <div>
                             <Label className="text-xs text-muted-foreground">Resposta</Label>
                             <Textarea
-                              placeholder="Para baixar no iOS, consulte..."
-                              value={qa.answer}
-                              onChange={(e) => updateQaPair(qa.id, 'answer', e.target.value)}
+                              placeholder="Atendemos de segunda a sexta..."
+                              value={qa.resposta || ''} // Usando o nome do banco
+                              onChange={(e) => updateQaPair(qa.id, 'resposta', e.target.value)}
                               className="mt-1 min-h-[80px] bg-background"
                             />
                           </div>
