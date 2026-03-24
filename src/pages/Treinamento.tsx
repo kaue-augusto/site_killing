@@ -67,6 +67,7 @@ export default function Treinamento() {
   const [sourceText, setSourceText] = useState('');
   const [isExtracting, setIsExtracting] = useState(false);
   const [linksInclusos, setLinksInclusos] = useState(0);
+  const [linksExtraidos, setLinksExtraidos] = useState([]);
   const [qaList, setQaList] = useState<any[]>([]);
 
   // Estados de PDF (Dinâmicos)
@@ -153,6 +154,49 @@ export default function Treinamento() {
       };
 
       loadQA();
+      // === NOVO: Busca o Website Salvo ===
+      const loadWebsite = async () => {
+        try {
+          const { data, error } = await supabase
+            .from('bot_websites')
+            .select('url, conteudo')
+            .eq('bot_id', selectedBot.id)
+            .single();
+
+          if (data && data.url) {
+            setWebsiteUrl(data.url); // Preenche o input do site
+
+            // Extrai os links do markdown usando Regex
+            const regexLinks = /\]\((http[^)]+)\)/g;
+            const linksEncontrados = [];
+            let match;
+
+            while ((match = regexLinks.exec(data.conteudo)) !== null) {
+              linksEncontrados.push(match[1]);
+            }
+
+            const linksUnicos = [...new Set(linksEncontrados)];
+
+            // Atualiza a barra verde e a lista na tela
+            if (linksUnicos.length > 0) {
+              setLinksInclusos(linksUnicos.length);
+              setLinksExtraidos(linksUnicos);
+            } else {
+              setLinksInclusos(1);
+              setLinksExtraidos([data.url]);
+            }
+          } else {
+            // Se o bot não tiver site salvo, limpa a tela
+            setWebsiteUrl('');
+            setLinksInclusos(0);
+            setLinksExtraidos([]);
+          }
+        } catch (error) {
+          // É normal dar erro aqui se for um bot novo sem site, então ignoramos em silêncio
+        }
+      };
+
+      loadWebsite();
     }
     // --- LÓGICA DE VERIFICAÇÃO AUTOMÁTICA (POLLING) ---
     let intervalId: NodeJS.Timeout;
@@ -351,6 +395,7 @@ export default function Treinamento() {
 
       if (data.sucesso) {
         setLinksInclusos(data.totalLinks);
+        setLinksExtraidos(data.links);
         toast({
           title: 'Sucesso!',
           description: data.mensagem,
@@ -370,6 +415,8 @@ export default function Treinamento() {
       setIsExtracting(false);
     }
   };
+
+
 
   return (
     <div className="p-6 space-y-6 overflow-y-auto h-full max-w-5xl">
@@ -569,11 +616,38 @@ export default function Treinamento() {
                           className={`bg-[#4ade80] h-1 rounded-full transition-all duration-1000 ${isExtracting ? 'w-1/2 animate-pulse' : 'w-full'}`}
                         ></div>
                       </div>
-                      <p className="text-xs text-right text-muted-foreground">
+                      <p className="text-xs text-right text-muted-foreground mb-4">
                         {linksInclusos > 0
                           ? `Última extração de ${linksInclusos} endereços finalizada hoje`
                           : 'Nenhuma extração recente'}
                       </p>
+
+                      {/* --- NOVO: LISTA DE LINKS EXTRAÍDOS --- */}
+                      {linksExtraidos && linksExtraidos.length > 0 && (
+                        <div className="mt-4 max-h-48 overflow-y-auto rounded-md border border-border bg-muted/50 p-4 text-sm custom-scrollbar">
+                          <p className="mb-3 font-semibold text-foreground">
+                            Páginas mapeadas pelo Agente:
+                          </p>
+                          <ul className="space-y-1">
+                            {linksExtraidos.map((link, index) => (
+                              <li key={index} className="flex items-start gap-2 text-muted-foreground hover:text-foreground transition-colors">
+                                <span className="text-[#4ade80] mt-0.5">•</span>
+                                <a
+                                  href={link}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="truncate break-all hover:underline"
+                                  title={link}
+                                >
+                                  {link}
+                                </a>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {/* -------------------------------------- */}
+
                     </div>
                   </CardContent>
                 </Card>
