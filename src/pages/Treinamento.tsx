@@ -68,6 +68,7 @@ export default function Treinamento() {
   const [isExtracting, setIsExtracting] = useState(false);
   const [linksInclusos, setLinksInclusos] = useState(0);
   const [linksExtraidos, setLinksExtraidos] = useState([]);
+  const [savedSites, setSavedSites] = useState<any[]>([]);
   const [qaList, setQaList] = useState<any[]>([]);
 
   // Estados de PDF (Dinâmicos)
@@ -113,20 +114,58 @@ export default function Treinamento() {
     }
   };
 
+  const fetchSitesDoBot = async () => {
+    if (!selectedBot?.id) return;
+
+    try {
+      // Usamos .select() em vez de .single() para trazer TODOS os sites
+      const { data, error } = await supabase
+        .from('bot_websites')
+        .select('id, url, conteudo')
+        .eq('bot_id', selectedBot.id);
+
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        setSavedSites(data); // Guarda a lista de sites
+
+        let todosLinks: string[] = [];
+        const regexLinks = /\]\((http[^)]+)\)/g;
+
+        // Extrai os links de todos os sites guardados
+        data.forEach(site => {
+          let match;
+          while ((match = regexLinks.exec(site.conteudo)) !== null) {
+            todosLinks.push(match[1]);
+          }
+        });
+
+        // Remove duplicados e atualiza a interface
+        const linksUnicos = [...new Set(todosLinks)];
+        setLinksInclusos(linksUnicos.length > 0 ? linksUnicos.length : data.length);
+        setLinksExtraidos(linksUnicos.length > 0 ? linksUnicos : data.map(d => d.url));
+      } else {
+        setSavedSites([]);
+        setLinksInclusos(0);
+        setLinksExtraidos([]);
+      }
+    } catch (error) {
+      console.error("Erro ao buscar sites:", error);
+    }
+  };
+
   // 2. DEPOIS: O useEffect para sincronização
   useEffect(() => {
     if (selectedBot?.id) {
-      // Limpa o QR Code anterior ao trocar de bot para não confundir
+      // Limpa o QR Code anterior ao trocar de bot
       setQrCode(null);
-      // Carrega os dados reais do banco
       setInstructions(selectedBot.instructions || '');
       setBotName(selectedBot.name || '');
 
-      // === NOVO CÓDIGO: Busca os PDFs da tabela arquivos_pdf ===
+      // === Busca os PDFs ===
       const loadPdfs = async () => {
         setIsLoadingFiles(true);
         try {
-          // Passa o slug do bot selecionado para buscar apenas os arquivos dele
           const pdfs = await fetchBotPdfs(selectedBot.id);
           setUploadedPdfs(pdfs);
         } catch (error) {
@@ -135,9 +174,9 @@ export default function Treinamento() {
           setIsLoadingFiles(false);
         }
       };
-
       loadPdfs();
-      // =========================================================
+
+      // === Busca o Q&A ===
       const loadQA = async () => {
         try {
           const { data, error } = await supabase
@@ -147,71 +186,28 @@ export default function Treinamento() {
             .order('created_at', { ascending: true });
 
           if (error) throw error;
-          setQaList(data || []); // Se não houver nada, fica []
+          setQaList(data || []);
         } catch (error: any) {
           console.error("Erro ao carregar Q&A:", error.message);
         }
       };
-
       loadQA();
-      // === NOVO: Busca o Website Salvo ===
-      const loadWebsite = async () => {
-        try {
-          const { data, error } = await supabase
-            .from('bot_websites')
-            .select('url, conteudo')
-            .eq('bot_id', selectedBot.id)
-            .single();
 
-          if (data && data.url) {
-            setWebsiteUrl(data.url); // Preenche o input do site
-
-            // Extrai os links do markdown usando Regex
-            const regexLinks = /\]\((http[^)]+)\)/g;
-            const linksEncontrados = [];
-            let match;
-
-            while ((match = regexLinks.exec(data.conteudo)) !== null) {
-              linksEncontrados.push(match[1]);
-            }
-
-            const linksUnicos = [...new Set(linksEncontrados)];
-
-            // Atualiza a barra verde e a lista na tela
-            if (linksUnicos.length > 0) {
-              setLinksInclusos(linksUnicos.length);
-              setLinksExtraidos(linksUnicos);
-            } else {
-              setLinksInclusos(1);
-              setLinksExtraidos([data.url]);
-            }
-          } else {
-            // Se o bot não tiver site salvo, limpa a tela
-            setWebsiteUrl('');
-            setLinksInclusos(0);
-            setLinksExtraidos([]);
-          }
-        } catch (error) {
-          // É normal dar erro aqui se for um bot novo sem site, então ignoramos em silêncio
-        }
-      };
-
-      loadWebsite();
+      // === MÚLTIPLOS SITES: Chama a função que você criou lá em cima! ===
+      fetchSitesDoBot();
     }
+
     // --- LÓGICA DE VERIFICAÇÃO AUTOMÁTICA (POLLING) ---
     let intervalId: NodeJS.Timeout;
 
     const checkConnection = async () => {
-      // Só verifica se tiver a instância cadastrada no Supabase
       if (!selectedBot?.zapInstance || !selectedBot?.zapToken) return;
 
       try {
         const status = await getWhatsAppStatus(selectedBot.zapInstance, selectedBot.zapToken);
-
         setWhatsappConnected(status.connected);
         if (status.phone) setWhatsappPhone(status.phone);
 
-        // Se a resposta for "Conectado", limpa o QR Code da tela automaticamente
         if (status.connected) {
           setQrCode(null);
           setIsGeneratingQR(false);
@@ -221,15 +217,11 @@ export default function Treinamento() {
       }
     };
 
-    // Verifica o status na hora que abre a tela
     checkConnection();
-
-    // Fica verificando a cada 5 segundos
     intervalId = setInterval(checkConnection, 5000);
 
-    // Limpa o timer se você fechar a página ou mudar de bot
     return () => clearInterval(intervalId);
-  }, [selectedBot]);
+  }, [selectedBot]); // <- O fetchSitesDoBot vai rodar sempre que mudar de bot
 
 
   const handleSaveTraining = async () => {
@@ -376,6 +368,23 @@ export default function Treinamento() {
     }
   };
 
+  const handleRemoverSite = async (siteId: string) => {
+    try {
+      const { error } = await supabase
+        .from('bot_websites')
+        .delete()
+        .eq('id', siteId);
+
+      if (error) throw error;
+
+      toast({ title: 'Site removido', description: 'O conteúdo foi apagado da memória do bot.' });
+      // Atualiza a lista na tela
+      fetchSitesDoBot();
+    } catch (error) {
+      toast({ title: 'Erro', description: 'Não foi possível remover o site.', variant: 'destructive' });
+    }
+  };
+
   const handleExtrairSite = async () => {
     if (!websiteUrl) {
       toast({ title: 'Erro', description: 'Digite uma URL válida.', variant: 'destructive' });
@@ -394,8 +403,10 @@ export default function Treinamento() {
       if (error) throw error;
 
       if (data.sucesso) {
-        setLinksInclusos(data.totalLinks);
-        setLinksExtraidos(data.links);
+        // setLinksInclusos(data.totalLinks);
+        // setLinksExtraidos(data.links);
+        await fetchSitesDoBot();
+        setWebsiteUrl('');
         toast({
           title: 'Sucesso!',
           description: data.mensagem,
@@ -415,8 +426,6 @@ export default function Treinamento() {
       setIsExtracting(false);
     }
   };
-
-
 
   return (
     <div className="p-6 space-y-6 overflow-y-auto h-full max-w-5xl">
@@ -605,6 +614,45 @@ export default function Treinamento() {
                       <p className="text-xs text-muted-foreground mt-2">Essa ação vai extrair todas as informações relevantes do site que você colocar.</p>
                     </div>
 
+
+                    {/* --- NOVO: LISTA DE SITES SALVOS (RAIZ) --- */}
+                    {savedSites && savedSites.length > 0 && (
+                      <div className="mt-6 mb-6">
+                        <p className="text-sm font-medium mb-3 text-foreground">
+                          Fontes de site ativas no cérebro do Bot:
+                        </p>
+                        <div className="space-y-2">
+                          {savedSites.map((site) => (
+                            <div
+                              key={site.id}
+                              className="flex items-center justify-between p-3 rounded-md border border-border bg-card shadow-sm"
+                            >
+                              <a
+                                href={site.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-sm text-primary hover:underline truncate mr-4 flex-1 font-medium"
+                              >
+                                {site.url}
+                              </a>
+
+                              {/* O famoso Botão de Apagar! */}
+                              <button
+                                onClick={() => handleRemoverSite(site.id)}
+                                className="text-red-400 hover:text-red-500 hover:bg-red-400/10 p-2 rounded-md transition-colors flex-shrink-0"
+                                title="Remover este site da memória do bot"
+                              >
+                                <svg xmlns="http://www.w0.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M3 6h18"></path>
+                                  <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                                  <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                                </svg>
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Animação e contagem visual da barra verde */}
                     <div className="pt-6 border-t border-border">
