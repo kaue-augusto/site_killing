@@ -77,6 +77,12 @@ export default function Treinamento() {
   const [uploadedPdfs, setUploadedPdfs] = useState<any[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // --- ESTADOS PARA A ABA TEXTO ---
+  const [textoTitulo, setTextoTitulo] = useState('');
+  const [textoConteudo, setTextoConteudo] = useState('');
+  const [savedTextos, setSavedTextos] = useState<any[]>([]);
+  const [isSavingTexto, setIsSavingTexto] = useState(false);
+
   // WhatsApp state
   const [whatsappConnected, setWhatsappConnected] = useState(false);
   const [whatsappPhone, setWhatsappPhone] = useState<string | null>(null);
@@ -195,6 +201,8 @@ export default function Treinamento() {
 
       // === MÚLTIPLOS SITES: Chama a função que você criou lá em cima! ===
       fetchSitesDoBot();
+
+      fetchTextosDoBot();
     }
 
     // --- LÓGICA DE VERIFICAÇÃO AUTOMÁTICA (POLLING) ---
@@ -424,6 +432,62 @@ export default function Treinamento() {
       });
     } finally {
       setIsExtracting(false);
+    }
+  };
+
+  // 1. Buscar os Textos do Bot
+  const fetchTextosDoBot = async () => {
+    if (!selectedBot?.id) return;
+    try {
+      const { data, error } = await supabase
+        .from('bot_textos')
+        .select('*')
+        .eq('bot_id', selectedBot.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setSavedTextos(data || []);
+    } catch (error) {
+      console.error("Erro ao buscar textos:", error);
+    }
+  };
+
+  // 2. Salvar um Novo Texto
+  const handleSalvarTexto = async () => {
+    if (!textoTitulo.trim() || !textoConteudo.trim()) {
+      toast({ title: 'Campos vazios', description: 'Preencha o título e o conteúdo.', variant: 'destructive' });
+      return;
+    }
+    if (!selectedBot?.id) return;
+
+    setIsSavingTexto(true);
+    try {
+      const { error } = await supabase
+        .from('bot_textos')
+        .insert([{ bot_id: selectedBot.id, titulo: textoTitulo, conteudo: textoConteudo }]);
+
+      if (error) throw error;
+
+      toast({ title: 'Texto salvo!', description: 'O conhecimento foi adicionado à memória do bot.' });
+      setTextoTitulo(''); // Limpa o campo
+      setTextoConteudo(''); // Limpa o campo
+      fetchTextosDoBot(); // Atualiza a lista na tela
+    } catch (error) {
+      toast({ title: 'Erro ao salvar', description: 'Não foi possível salvar o texto.', variant: 'destructive' });
+    } finally {
+      setIsSavingTexto(false);
+    }
+  };
+
+  // 3. Remover um Texto
+  const handleRemoverTexto = async (id: string) => {
+    try {
+      const { error } = await supabase.from('bot_textos').delete().eq('id', id);
+      if (error) throw error;
+      toast({ title: 'Texto removido', description: 'Apagado com sucesso.' });
+      fetchTextosDoBot(); // Atualiza a lista na tela
+    } catch (error) {
+      toast({ title: 'Erro', description: 'Não foi possível remover o texto.', variant: 'destructive' });
     }
   };
 
@@ -750,19 +814,82 @@ export default function Treinamento() {
               </TabsContent>
 
               {/* Sub-Aba: Texto */}
-              <TabsContent value="texto" className="pt-6">
-                <Card className="bg-card border-border">
+              <TabsContent value="texto">
+                <Card>
                   <CardHeader>
-                    <CardTitle className="text-lg">Texto</CardTitle>
+                    <CardTitle>Conhecimento em Texto</CardTitle>
+                    <CardDescription>
+                      Cole aqui comunicados, história da empresa, regras ou qualquer informação em texto livre para o bot aprender.
+                    </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <Textarea
-                      placeholder="Cole ou digite seu texto de treinamento aqui..."
-                      value={sourceText}
-                      onChange={(e) => setSourceText(e.target.value)}
-                      className="min-h-[300px] bg-secondary/50 font-mono text-sm"
-                    />
-                    <Button>Salvar Texto</Button>
+
+                    {/* Formulário de Adição */}
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-sm font-medium mb-1 block">Título do Assunto</label>
+                        <Input
+                          value={textoTitulo}
+                          onChange={e => setTextoTitulo(e.target.value)}
+                          placeholder="Ex: Política de Férias 2026"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium mb-1 block">Conteúdo</label>
+                        <textarea
+                          value={textoConteudo}
+                          onChange={e => setTextoConteudo(e.target.value)}
+                          placeholder="Cole todo o texto aqui..."
+                          className="flex min-h-[200px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring custom-scrollbar resize-y"
+                        />
+                      </div>
+                      <Button
+                        onClick={handleSalvarTexto}
+                        disabled={isSavingTexto}
+                        className="w-full sm:w-auto"
+                      >
+                        {isSavingTexto ? 'A guardar...' : 'Guardar na Memória'}
+                      </Button>
+                    </div>
+
+                    {/* Lista de Textos Salvos */}
+                    {savedTextos && savedTextos.length > 0 && (
+                      <div className="mt-8 pt-6 border-t border-border">
+                        <p className="text-sm font-medium mb-4 text-foreground">
+                          Textos ativos no cérebro do Bot:
+                        </p>
+                        <div className="grid gap-3 sm:grid-cols-1 md:grid-cols-2">
+                          {savedTextos.map((texto) => (
+                            <div
+                              key={texto.id}
+                              className="flex flex-col justify-between p-4 rounded-md border border-border bg-card shadow-sm hover:shadow-md transition-shadow relative group"
+                            >
+                              <div className="pr-8">
+                                <h4 className="font-semibold text-sm text-foreground truncate" title={texto.titulo}>
+                                  {texto.titulo}
+                                </h4>
+                                <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                                  {texto.conteudo}
+                                </p>
+                              </div>
+
+                              <button
+                                onClick={() => handleRemoverTexto(texto.id)}
+                                className="absolute top-3 right-3 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 p-1.5 rounded-md transition-colors"
+                                title="Remover este texto"
+                              >
+                                <svg xmlns="http://www.w0.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M3 6h18"></path>
+                                  <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                                  <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                                </svg>
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                   </CardContent>
                 </Card>
               </TabsContent>
