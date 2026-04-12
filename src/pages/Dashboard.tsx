@@ -2,10 +2,10 @@ import { useState, useEffect } from 'react';
 import { useBot } from '@/contexts/BotContext';
 import { fetchDashboard, DashboardData } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { 
-  MessageSquare, 
-  Users, 
-  Clock, 
+import {
+  MessageSquare,
+  Users,
+  Clock,
   CheckCircle,
   TrendingUp,
   BarChart3
@@ -36,7 +36,7 @@ export default function Dashboard() {
     const loadDashboard = async () => {
       setIsLoading(true);
       try {
-        const dashboardData = await fetchDashboard();
+        const dashboardData = await fetchDashboard(selectedBot?.slug);
         setData(dashboardData);
       } catch (error) {
         console.error('Error loading dashboard:', error);
@@ -87,11 +87,18 @@ export default function Dashboard() {
       bgColor: 'bg-green-500/10',
     },
     {
+      title: 'Intervenções Humanas',
+      value: data.humanInterventions,
+      icon: Users,
+      color: 'text-orange-500',
+      bgColor: 'bg-orange-500/10',
+    },
+    {
       title: 'Tempo Médio Resposta',
       value: data.avgResponseTime,
       icon: Clock,
-      color: 'text-orange-500',
-      bgColor: 'bg-orange-500/10',
+      color: 'text-purple-500',
+      bgColor: 'bg-purple-500/10',
     },
   ];
 
@@ -107,7 +114,7 @@ export default function Dashboard() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         {statsCards.map((stat, index) => (
           <Card key={index} className="bg-card border-border">
             <CardContent className="pt-6">
@@ -179,12 +186,12 @@ export default function Dashboard() {
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={data.conversationsByAgent}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 15%, 22%)" />
-                <XAxis 
-                  dataKey="agent" 
+                <XAxis
+                  dataKey="agent"
                   stroke="hsl(215, 15%, 55%)"
                   fontSize={12}
                 />
-                <YAxis 
+                <YAxis
                   stroke="hsl(215, 15%, 55%)"
                   fontSize={12}
                 />
@@ -195,9 +202,9 @@ export default function Dashboard() {
                     borderRadius: '8px',
                   }}
                 />
-                <Bar 
-                  dataKey="count" 
-                  fill="hsl(152, 60%, 45%)" 
+                <Bar
+                  dataKey="count"
+                  fill="hsl(152, 60%, 45%)"
                   radius={[4, 4, 0, 0]}
                 />
               </BarChart>
@@ -218,12 +225,12 @@ export default function Dashboard() {
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={data.slaMetrics}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 15%, 22%)" />
-              <XAxis 
-                dataKey="period" 
+              <XAxis
+                dataKey="period"
                 stroke="hsl(215, 15%, 55%)"
                 fontSize={12}
               />
-              <YAxis 
+              <YAxis
                 stroke="hsl(215, 15%, 55%)"
                 fontSize={12}
               />

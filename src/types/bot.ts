@@ -1,6 +1,8 @@
 export interface Bot {
   id: string;
   slug: string;
+  bot_name?: string | null;
+  mode?: string;
   name: string;
   description: string | null;
   icon: string;

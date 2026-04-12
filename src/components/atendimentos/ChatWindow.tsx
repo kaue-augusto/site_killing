@@ -103,11 +103,11 @@ export function ChatWindow({
           messages.map((msg) => (
             <div
               key={msg.id}
-              className={`flex ${msg.sender === 'agent' ? 'justify-end' : 'justify-start'} animate-fade-in`}
+              className={`flex ${msg.sender === 'agent' || msg.sender === 'human' ? 'justify-end' : 'justify-start'} animate-fade-in`}
             >
               <div
                 className={`max-w-[70%] px-4 py-2 ${
-                  msg.sender === 'agent'
+                  msg.sender === 'agent' || msg.sender === 'human'
                     ? 'chat-bubble-sent'
                     : msg.sender === 'bot'
                     ? 'bg-muted text-foreground rounded-2xl rounded-bl-sm'
@@ -119,7 +119,7 @@ export function ChatWindow({
                   <span className="text-[10px] text-chat-timestamp">
                     {format(msg.timestamp, 'HH:mm', { locale: ptBR })}
                   </span>
-                  {msg.sender === 'agent' && getStatusIcon(msg.status)}
+                  {(msg.sender === 'agent' || msg.sender === 'human') && getStatusIcon(msg.status)}
                 </div>
               </div>
             </div>

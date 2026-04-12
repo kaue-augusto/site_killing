@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useBot } from '@/contexts/BotContext';
+import { supabase } from '@/lib/supabase'; // Certifique-se de que o caminho do seu client do Supabase está correto
 import {
   fetchConversations,
   fetchMessages,
@@ -8,6 +9,8 @@ import {
   deleteConversation,
   blockContact,
   reportContact,
+  takeoverConversation,
+  returnToBot,
   Conversation,
   Message
 } from '@/lib/api';
@@ -72,6 +75,90 @@ export default function Atendimentos() {
     loadMessages();
   }, [selectedConversation]);
 
+  // ------------------------------------------------------------------
+  // 🟢 REALTIME 1: Atualiza as MENSAGENS do chat aberto na tela
+  // ------------------------------------------------------------------
+  useEffect(() => {
+    // Se não tem chat selecionado, não escuta nada
+    if (!selectedConversation) return;
+
+    const messagesChannel = supabase
+      .channel(`chat-aberto-${selectedConversation.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `chat_id=eq.${selectedConversation.id}`, // Escuta só mensagens deste chat!
+        },
+        (payload) => {
+          const rawMsg = payload.new as any;
+
+          const newMessage: Message = {
+            id: rawMsg.id,
+            conversationId: rawMsg.chat_id,
+            content: rawMsg.content || '',
+            type: 'text',
+            sender: rawMsg.sender_type as Message['sender'],
+            timestamp: new Date(rawMsg.created_at),
+            status: 'read'
+          };
+
+          // Adiciona a mensagem nova na tela se ela já não estiver lá
+          setMessages((prev) => {
+            if (prev.some((msg) => msg.id === newMessage.id)) return prev;
+            return [...prev, newMessage];
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(messagesChannel);
+    };
+  }, [selectedConversation]);
+
+
+  // ------------------------------------------------------------------
+  // 🟢 REALTIME 2: Atualiza a BARRA LATERAL (Última mensagem e ordem)
+  // ------------------------------------------------------------------
+  useEffect(() => {
+    const sidebarChannel = supabase
+      .channel('atualiza-sidebar')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'messages' }, // Escuta TODAS as mensagens
+        (payload) => {
+          const novaMensagem = payload.new as any;
+
+          setConversations((conversasAntigas) => {
+            const index = conversasAntigas.findIndex(c => c.id === novaMensagem.chat_id);
+
+            // Se a mensagem for de um chat que não tá na lista, ignora
+            if (index === -1) return conversasAntigas;
+
+            const conversasAtualizadas = [...conversasAntigas];
+
+            // Atualiza o texto da última mensagem e o horário
+            conversasAtualizadas[index] = {
+              ...conversasAtualizadas[index],
+              lastMessage: novaMensagem.content || 'Anexo',
+              lastMessageTime: new Date(novaMensagem.created_at)
+            };
+
+            // Reordena a lista jogando a conversa atualizada pro topo
+            return conversasAtualizadas.sort((a, b) => b.lastMessageTime.getTime() - a.lastMessageTime.getTime());
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(sidebarChannel);
+    };
+  }, []);
+
   const handleSelectConversation = (conversation: Conversation) => {
     setSelectedConversation(conversation);
   };
@@ -85,7 +172,10 @@ export default function Atendimentos() {
         content,
         type,
       });
-      setMessages((prev) => [...prev, newMessage]);
+      setMessages((prev) => {
+        if (prev.some(m => m.id === newMessage.id)) return prev;
+        return [...prev, newMessage];
+      });
     } catch (error) {
       toast({
         title: 'Erro',
@@ -117,11 +207,47 @@ export default function Atendimentos() {
     }
   };
 
-  const handleTransferConversation = () => {
-    toast({
-      title: 'Transferir',
-      description: 'Funcionalidade de transferência em desenvolvimento',
-    });
+  const handleTakeoverConversation = async () => {
+    if (!selectedConversation || !selectedBot) return;
+
+    try {
+      await takeoverConversation(selectedConversation.id);
+      toast({
+        title: 'Sucesso',
+        description: 'Você assumiu a conversa. O robô foi pausado.',
+      });
+      setSelectedConversation({ ...selectedConversation, status: 'assigned' });
+      // Atualizar lista para colorir/agrupar, se tiver
+      const data = await fetchConversations(selectedBot.slug);
+      setConversations(data);
+    } catch (error) {
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível assumir a conversa',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleReturnToBot = async () => {
+    if (!selectedConversation || !selectedBot) return;
+
+    try {
+      await returnToBot(selectedConversation.id);
+      toast({
+        title: 'Sucesso',
+        description: 'A conversa foi devolvida para o robô.',
+      });
+      setSelectedConversation({ ...selectedConversation, status: 'open' });
+      const data = await fetchConversations(selectedBot.slug);
+      setConversations(data);
+    } catch (error) {
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível devolver para o robô',
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleDeleteConversation = async () => {
@@ -203,8 +329,10 @@ export default function Atendimentos() {
 
       <ContactPanel
         conversation={selectedConversation}
+        messages={messages}
         onClose={handleCloseConversation}
-        onTransfer={handleTransferConversation}
+        onTakeover={handleTakeoverConversation}
+        onReturnToBot={handleReturnToBot}
         onDelete={handleDeleteConversation}
         onBlock={handleBlockContact}
         onReport={handleReportContact}
@@ -212,4 +340,3 @@ export default function Atendimentos() {
     </div>
   );
 }
-

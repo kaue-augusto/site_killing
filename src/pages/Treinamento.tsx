@@ -10,44 +10,28 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import {
-  ShoppingCart,
-  Headphones,
-  Users,
-  Settings2,
-  MessageCircle,
-  QrCode,
-  Wifi,
-  WifiOff,
-  RefreshCw,
-  Send,
-  Instagram,
-  CheckCircle2,
-  Database,
-  Globe,
-  HelpCircle,
-  AlignLeft,
-  FileText,
-  UploadCloud,
-  Trash2,
-  Plus,
-  Eye
+  ShoppingCart, Headphones, BookOpen, Users, Settings2, MessageCircle, QrCode, Wifi, WifiOff, RefreshCw, Send, Instagram, CheckCircle2, Database, Globe, HelpCircle, AlignLeft, FileText, UploadCloud,
+  Trash2, Plus, Eye
 } from 'lucide-react';
 import { useBot } from '@/contexts/BotContext';
 import { useToast } from '@/hooks/use-toast';
-import { generateWhatsAppQR, getWhatsAppStatus, disconnectWhatsApp, saveBotTraining, BotTrainingConfig, BotType, uploadPdfToGCP, fetchBotPdfs } from '@/lib/api';
+import { generateWhatsAppQR, getWhatsAppStatus, disconnectWhatsApp, saveBotTraining, BotTrainingConfig, BotType, uploadPdfToGCP, fetchBotPdfs, viewSecurePdf } from '@/lib/api';
+
 
 const botModes = [
   { id: 'vendas', label: 'Vendas', icon: ShoppingCart, description: 'Focado em conversão e vendas' },
   { id: 'suporte', label: 'Suporte', icon: Headphones, description: 'Atendimento e resolução de problemas' },
-  { id: 'rh', label: 'RH', icon: Users, description: 'Recursos humanos e funcionários' },
-  { id: 'personalizado', label: 'Personalizado', icon: Settings2, description: 'Configure do seu jeito' },
+  { id: 'ensino', label: 'Ensino', icon: BookOpen, description: 'Explicações didáticas e passo a passo' },
+  { id: 'personalizado', label: 'Personalizado', icon: Settings2, description: 'Configure do seu jeito do zero' },
 ];
 
-const toneOptions = [
-  { id: 'formal', label: 'Formal' },
-  { id: 'informal', label: 'Informal' },
-  { id: 'neutro', label: 'Neutro' },
-];
+
+const defaultInstructions = {
+  vendas: "Você é um assistente virtual focado em Vendas. Seu objetivo principal é entender a necessidade do cliente, apresentar os benefícios dos nossos produtos de forma persuasiva e conduzir a conversa para o fechamento. Seja proativo, educado e termine sempre com uma pergunta que incentive a compra ou o próximo passo lógico.",
+  suporte: "Você é um assistente de Suporte e Atendimento. Seu objetivo é resolver problemas de forma rápida, clara e empática. Peça detalhes sobre o problema do usuário passo a passo, forneça a solução e sempre confirme se a dúvida foi resolvida. Seja paciente, objetivo e nunca invente informações que não estão na sua base.",
+  ensino: "Você é um assistente focado em Ensino e Treinamento. Seu objetivo é explicar conceitos complexos de forma simples, guiando o usuário em seu aprendizado. Use analogias, divida a explicação em tópicos curtos (bullet points) e pergunte se o usuário compreendeu antes de avançar para o próximo assunto.",
+  personalizado: "" // Deixa a caixa de texto completamente em branco para o utilizador
+};
 
 export default function Treinamento() {
   const { selectedBot, refreshBots } = useBot();
@@ -57,8 +41,7 @@ export default function Treinamento() {
   // Training state Estados de Configuração do Bot
   const [selectedMode, setSelectedMode] = useState('suporte');
   const [instructions, setInstructions] = useState('');
-  const [botName, setBotName] = useState(selectedBot?.name || '');
-  const [tone, setTone] = useState('formal');
+  const [botName, setBotName] = useState(selectedBot?.bot_name || '');
   const [autoTransfer, setAutoTransfer] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -76,6 +59,8 @@ export default function Treinamento() {
   const [isUploadingPdf, setIsUploadingPdf] = useState(false);
   const [uploadedPdfs, setUploadedPdfs] = useState<any[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+
 
   // --- ESTADOS PARA A ABA TEXTO ---
   const [textoTitulo, setTextoTitulo] = useState('');
@@ -92,32 +77,70 @@ export default function Treinamento() {
   // 1. Crie o estado inicial
   const [n8nWebhookUrl, setN8nWebhookUrl] = useState('');
 
-  const handlePdfSelection = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  // 1. A FUNÇÃO PRINCIPAL (É o seu código exato, mas agora aceita arquivos de qualquer lugar)
+  const processFiles = async (files: File[]) => {
+    if (files.length === 0) return;
 
-    // Validação de segurança simples no frontend
-    if (file.type !== 'application/pdf') {
-      toast({ title: 'Formato inválido', description: 'Por favor, selecione apenas arquivos PDF.', variant: 'destructive' });
-      return;
+    const validFiles = files.filter(file => file.type === 'application/pdf');
+
+    if (validFiles.length !== files.length) {
+      toast({
+        title: 'Aviso',
+        description: 'Alguns arquivos foram ignorados pois não são PDF.',
+        variant: 'destructive'
+      });
     }
+
+    if (validFiles.length === 0) return;
 
     setIsUploadingPdf(true);
     try {
-      // Chama a função da API passando o arquivo real e o slug do bot para a pasta
-      const newPdf = await uploadPdfToGCP(file, selectedBot?.id || 'default', selectedBot?.slug);
+      const uploadPromises = validFiles.map(file =>
+        uploadPdfToGCP(file, selectedBot?.id || 'default', selectedBot?.slug)
+      );
 
-      // Adiciona o novo PDF na lista visual
-      setUploadedPdfs(prev => [...prev, newPdf]);
+      const novosPdfs = await Promise.all(uploadPromises);
+      setUploadedPdfs(prev => [...prev, ...novosPdfs]);
 
-      toast({ title: 'PDF enviado!', description: 'O arquivo foi salvo no Google Cloud Storage.' });
+      toast({
+        title: 'Upload concluído!',
+        description: `${novosPdfs.length} arquivo(s) salvo(s) com sucesso.`
+      });
     } catch (error) {
-      toast({ title: 'Erro no envio', description: 'Não foi possível enviar o arquivo.', variant: 'destructive' });
+      toast({
+        title: 'Erro no envio',
+        description: 'Não foi possível enviar um ou mais arquivos.',
+        variant: 'destructive'
+      });
     } finally {
       setIsUploadingPdf(false);
-      // Limpa o input para permitir selecionar o mesmo arquivo de novo se precisar
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
+  };
+
+  // 2. FUNÇÃO DO CLIQUE (Quando clica no botão "Carregar")
+  const handlePdfSelection = (event: React.ChangeEvent<HTMLInputElement>) => {
+    processFiles(Array.from(event.target.files || []));
+  };
+
+  // 3. FUNÇÕES DO ARRASTAR E SOLTAR (O segredo para não abrir nova aba)
+  const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault(); // Impede o navegador de tentar abrir o PDF
+    setIsDragging(true);    // Deixa a caixa verde (se você adicionou o estado isDragging)
+  };
+
+  const handleDragLeave = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setIsDragging(false);   // Tira a cor verde quando o mouse sai da caixa
+  };
+
+  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault(); // Impede o navegador de tentar abrir o PDF
+    setIsDragging(false);
+
+    // Pega os arquivos que foram soltos e manda para a função principal
+    const droppedFiles = Array.from(event.dataTransfer.files || []);
+    processFiles(droppedFiles);
   };
 
   const fetchSitesDoBot = async () => {
@@ -166,7 +189,8 @@ export default function Treinamento() {
       // Limpa o QR Code anterior ao trocar de bot
       setQrCode(null);
       setInstructions(selectedBot.instructions || '');
-      setBotName(selectedBot.name || '');
+      setBotName(selectedBot.bot_name || '');
+      setSelectedMode(selectedBot.mode || 'suporte');
 
       // === Busca os PDFs ===
       const loadPdfs = async () => {
@@ -235,11 +259,20 @@ export default function Treinamento() {
   const handleSaveTraining = async () => {
     if (!selectedBot || !user) return;
     setIsSaving(true);
+
     try {
-      // Como você definiu que tudo será inserido nas instructions,
-      // passamos o estado 'instructions' do componente
+      // Cria um texto final unindo as instruções visíveis com o nome do bot em "segundo plano"
+      const instrucoesFinais = `${instructions}
+
+[DIRETRIZES DE IDENTIDADE]
+- O seu nome é: ${botName}
+      `.trim();
+
+      // Salva no banco (assumindo que a sua função atualiza a coluna 'instructions' e 'name')
       await saveBotTraining(selectedBot.slug, {
-        instructions,
+        name: botName, // Atualiza o nome oficial do bot no banco
+        instructions: instructions, // Salva o texto completo com a injeção do nome
+        mode: selectedMode,
         user_id: user.id
       });
 
@@ -247,7 +280,7 @@ export default function Treinamento() {
 
       toast({
         title: 'Treinamento salvo!',
-        description: 'As instruções de personalidade foram sincronizadas com o banco.',
+        description: 'As configurações foram sincronizadas com o banco.',
       });
     } catch (error) {
       toast({
@@ -491,6 +524,14 @@ export default function Treinamento() {
     }
   };
 
+  // Função que lida com o clique no Card de Modo
+  const handleModeSelection = (modeId) => {
+    setSelectedMode(modeId); // Muda a cor do botão
+    setInstructions(defaultInstructions[modeId]); // Preenche a caixa de texto com o template
+  };
+
+
+
   return (
     <div className="p-6 space-y-6 overflow-y-auto h-full max-w-5xl">
       <div>
@@ -515,10 +556,27 @@ export default function Treinamento() {
         {/* --- ABA 1: CONFIGURAÇÕES --- */}
         {/* Training Tab */}
         <TabsContent value="treinamento" className="space-y-6 mt-6">
-          {/* Bot Mode Selection */}
-          <Card className="bg-card border-border">
-            <CardHeader>
-              <CardTitle className="text-foreground">Modo do Bot</CardTitle>
+
+          {/* Bot Mode Selection - Com overflow-visible para o Tooltip */}
+          <Card className="bg-card border-border overflow-visible">
+            <CardHeader className="pb-4">
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-foreground">Modo do Bot</CardTitle>
+
+                {/* NOVO: Tooltip / Balão de Ajuda */}
+                <div className="relative group cursor-pointer flex items-center">
+                  <HelpCircle className="w-4 h-4 text-muted-foreground hover:text-green-500 transition-colors" />
+                  <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden w-64 rounded-md border border-border bg-popover p-3 text-xs text-popover-foreground shadow-xl group-hover:block z-50 text-center">
+                    Selecione o arquétipo principal. Isto define como o bot estrutura as respostas:
+                    <br /><br />
+                    <span className="text-green-500 font-semibold">Vendas:</span> Persuasivo e focado no produto.<br />
+                    <span className="text-green-500 font-semibold">Suporte:</span> Direto e focado na resolução.<br />
+                    <span className="text-green-500 font-semibold">Ensino:</span> Didático e passo a passo.
+                    {/* Triângulo apontando para baixo */}
+                    <div className="absolute left-1/2 -translate-x-1/2 top-full border-4 border-transparent border-t-popover"></div>
+                  </div>
+                </div>
+              </div>
               <CardDescription>
                 Selecione o tipo de atendimento que o bot realizará
               </CardDescription>
@@ -530,15 +588,16 @@ export default function Treinamento() {
                   return (
                     <button
                       key={mode.id}
-                      onClick={() => setSelectedMode(mode.id)}
+                      onClick={() => handleModeSelection(mode.id)}
                       className={`p-4 rounded-xl border-2 transition-all duration-200 text-left ${isSelected
-                        ? 'border-primary bg-primary/10'
-                        : 'border-border hover:border-primary/50 bg-secondary/50'
+                        ? 'border-green-500 bg-green-500/10'
+                        : 'border-border hover:border-green-500/50 bg-secondary/50'
                         }`}
                     >
-                      <mode.icon className={`w-8 h-8 mb-3 ${isSelected ? 'text-primary' : 'text-muted-foreground'}`} />
-                      <p className={`font-semibold ${isSelected ? 'text-primary' : 'text-foreground'}`}>
-                        {mode.label} </p>
+                      <mode.icon className={`w-8 h-8 mb-3 ${isSelected ? 'text-green-500' : 'text-muted-foreground'}`} />
+                      <p className={`font-semibold ${isSelected ? 'text-green-500' : 'text-foreground'}`}>
+                        {mode.label}
+                      </p>
                       <p className="text-xs text-muted-foreground mt-1">{mode.description}</p>
                     </button>
                   );
@@ -578,31 +637,15 @@ export default function Treinamento() {
               <CardDescription>Personalize a identidade e comportamento do bot</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="bot-name">Nome do Bot</Label>
-                  <Input
-                    id="bot-name"
-                    value={botName}
-                    onChange={(e) => setBotName(e.target.value)}
-                    placeholder="Ex: Marvin"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Tom de Voz</Label>
-                  <div className="flex gap-2">
-                    {toneOptions.map((option) => (
-                      <Button
-                        key={option.id}
-                        variant={tone === option.id ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setTone(option.id)}
-                      >
-                        {option.label}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="bot-name">Nome do Bot</Label>
+                <Input
+                  id="bot-name"
+                  value={botName}
+                  onChange={(e) => setBotName(e.target.value)}
+                  placeholder="Ex: Marvin"
+                  className="max-w-md"
+                />
               </div>
 
               <div className="flex items-center justify-between p-4 bg-secondary rounded-lg">
@@ -765,7 +808,6 @@ export default function Treinamento() {
                 </Card>
               </TabsContent>
 
-
               {/* Sub-Aba: Q&A */}
               <TabsContent value="qa" className="pt-6">
                 <Card className="bg-card border-border">
@@ -809,6 +851,12 @@ export default function Treinamento() {
                         </div>
                       </div>
                     ))}
+                    <Button onClick={addQaPair} variant="outline"
+                      className="w-full border-dashed border-2 hover:border-green-500 hover:text-green-500 hover:bg-green-500/10 transition-colors py-6 mt-4"
+                    >
+                      <Plus className="w-5 h-5 mr-2" />
+                      Adicionar nova Pergunta e Resposta
+                    </Button>
                   </CardContent>
                 </Card>
               </TabsContent>
@@ -906,6 +954,7 @@ export default function Treinamento() {
                     <input
                       type="file"
                       accept=".pdf,application/pdf"
+                      multiple
                       className="hidden"
                       ref={fileInputRef}
                       onChange={handlePdfSelection}
@@ -913,7 +962,13 @@ export default function Treinamento() {
 
                     <div
                       onClick={() => !isUploadingPdf && fileInputRef.current?.click()}
-                      className={`border-2 border-dashed border-border rounded-xl p-8 text-center flex flex-col items-center justify-center bg-secondary/20 transition-colors ${isUploadingPdf ? 'opacity-50 cursor-not-allowed' : 'hover:bg-secondary/40 cursor-pointer'}`}
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleDragLeave}
+                      onDrop={handleDrop}
+                      className={`border-2 border-dashed rounded-xl p-8 text-center flex flex-col items-center justify-center transition-all ${isDragging
+                        ? 'border-green-500 bg-green-500/10 scale-[1.02]' // Efeito visual ao arrastar
+                        : 'border-border bg-secondary/20 hover:bg-secondary/40'}
+                        ${isUploadingPdf ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                     >
                       <UploadCloud className="w-10 h-10 text-muted-foreground mb-4" />
                       <div className="flex items-center gap-4">
@@ -941,7 +996,20 @@ export default function Treinamento() {
                           </div>
                           <div className="flex gap-1">
                             {pdf.url && (
-                              <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-primary" onClick={() => window.open(pdf.url, '_blank')}>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="text-muted-foreground hover:text-primary"
+                                onClick={async () => {
+                                  try {
+                                    toast({ title: 'Abrindo...', description: 'Carregando documento seguro.', duration: 2000 });
+                                    await viewSecurePdf(pdf.url);
+                                  } catch (e) {
+                                    console.error(e);
+                                    toast({ title: 'Erro de Acesso', description: 'Não foi possível carregar o PDF.', variant: 'destructive' });
+                                  }
+                                }}
+                              >
                                 <Eye className="w-4 h-4" />
                               </Button>
                             )}

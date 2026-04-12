@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Phone, Mail, Calendar, Tag, X, ArrowRightLeft, Clock, Trash2, ShieldBan, Flag } from 'lucide-react';
-import { Conversation } from '@/lib/api';
+import { Conversation, Message } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { format } from 'date-fns';
@@ -19,14 +19,16 @@ import { Textarea } from '@/components/ui/textarea';
 
 interface ContactPanelProps {
   conversation: Conversation | null;
+  messages?: Message[];
   onClose: () => void;
-  onTransfer: () => void;
+  onTakeover: () => void;
+  onReturnToBot: () => void;
   onDelete: () => void;
   onBlock: () => void;
   onReport: (reason: string) => void;
 }
 
-export function ContactPanel({ conversation, onClose, onTransfer, onDelete, onBlock, onReport }: ContactPanelProps) {
+export function ContactPanel({ conversation, messages = [], onClose, onTakeover, onReturnToBot, onDelete, onBlock, onReport }: ContactPanelProps) {
   const [showCloseDialog, setShowCloseDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showBlockDialog, setShowBlockDialog] = useState(false);
@@ -105,15 +107,21 @@ export function ContactPanel({ conversation, onClose, onTransfer, onDelete, onBl
                 <div>
                   <p className="text-sm text-foreground">Início da conversa</p>
                   <p className="text-xs text-muted-foreground">
-                    {format(new Date(), "dd 'de' MMMM 'às' HH:mm", { locale: ptBR })}
+                    {messages.length > 0
+                      ? format(messages[0].timestamp, "dd 'de' MMMM 'às' HH:mm", { locale: ptBR })
+                      : 'Carregando...'}
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
                 <Clock className="w-4 h-4 text-muted-foreground" />
                 <div>
-                  <p className="text-sm text-foreground">Tempo de atendimento</p>
-                  <p className="text-xs text-muted-foreground">15 minutos</p>
+                  <p className="text-sm text-foreground">Tempo decorrido</p>
+                  <p className="text-xs text-muted-foreground">
+                    {messages.length > 0
+                      ? `${Math.max(1, Math.round((new Date().getTime() - messages[0].timestamp.getTime()) / 60000))} minutos`
+                      : '...'}
+                  </p>
                 </div>
               </div>
             </div>
@@ -121,55 +129,50 @@ export function ContactPanel({ conversation, onClose, onTransfer, onDelete, onBl
 
           <Separator />
 
-          {/* Tags */}
+          {/* Histórico Resumido */}
           <div className="p-4 space-y-3">
             <h5 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-              Tags
-            </h5>
-            <div className="flex flex-wrap gap-2">
-              <span className="px-2 py-1 bg-primary/20 text-primary text-xs rounded-full">
-                VIP
-              </span>
-              <span className="px-2 py-1 bg-warning/20 text-warning text-xs rounded-full">
-                Urgente
-              </span>
-            </div>
-          </div>
-
-          <Separator />
-
-          {/* History Summary */}
-          <div className="p-4 space-y-3">
-            <h5 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-              Histórico Resumido
+              Primeiro Contato
             </h5>
             <div className="space-y-2">
-              <div className="p-3 bg-secondary rounded-lg">
-                <p className="text-xs text-muted-foreground">Ontem às 14:30</p>
-                <p className="text-sm text-foreground mt-1">
-                  Solicitou informações sobre produto
-                </p>
-              </div>
-              <div className="p-3 bg-secondary rounded-lg">
-                <p className="text-xs text-muted-foreground">15/01 às 10:00</p>
-                <p className="text-sm text-foreground mt-1">
-                  Primeiro contato realizado
-                </p>
-              </div>
+              {messages.filter(m => m.sender === 'contact').slice(0, 2).map((msg, idx) => (
+                <div key={idx} className="p-3 bg-secondary rounded-lg">
+                  <p className="text-xs text-muted-foreground">
+                    {format(msg.timestamp, "dd/MM 'às' HH:mm", { locale: ptBR })}
+                  </p>
+                  <p className="text-sm text-foreground mt-1 line-clamp-2">
+                    {msg.content}
+                  </p>
+                </div>
+              ))}
+              {messages.filter(m => m.sender === 'contact').length === 0 && (
+                <p className="text-xs text-muted-foreground">Nenhuma mensagem do usuário recebida ainda.</p>
+              )}
             </div>
           </div>
         </div>
 
         {/* Actions */}
         <div className="p-4 border-t border-border space-y-2">
-          <Button
-            variant="outline"
-            className="w-full gap-2"
-            onClick={onTransfer}
-          >
-            <ArrowRightLeft className="w-4 h-4" />
-            Transferir Conversa
-          </Button>
+          {conversation.status === 'assigned' ? (
+            <Button
+              variant="outline"
+              className="w-full gap-2 text-primary border-primary/30 hover:bg-primary/10"
+              onClick={onReturnToBot}
+            >
+              <ArrowRightLeft className="w-4 h-4" />
+              Devolver para o Robô
+            </Button>
+          ) : (
+            <Button
+              variant={conversation.status === 'pending' ? 'default' : 'outline'}
+              className={`w-full gap-2 ${conversation.status === 'pending' ? 'bg-yellow-600 hover:bg-yellow-700 text-white' : ''}`}
+              onClick={onTakeover}
+            >
+              <ArrowRightLeft className="w-4 h-4" />
+              {conversation.status === 'pending' ? 'Assumir Conversa (Tem prioridade)' : 'Assumir e Pausar Robô'}
+            </Button>
+          )}
           <Button
             variant="destructive"
             className="w-full gap-2"

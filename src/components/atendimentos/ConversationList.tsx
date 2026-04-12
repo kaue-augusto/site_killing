@@ -12,7 +12,7 @@ interface ConversationListProps {
   isLoading?: boolean;
 }
 
-type FilterType = 'all' | 'mine' | 'unassigned' | 'closed';
+type FilterType = 'all' | 'pending' | 'mine' | 'unassigned' | 'closed';
 
 export function ConversationList({
   conversations,
@@ -25,6 +25,7 @@ export function ConversationList({
 
   const filters: { key: FilterType; label: string }[] = [
     { key: 'all', label: 'Todas' },
+    { key: 'pending', label: 'Aguardando' },
     { key: 'mine', label: 'Minhas' },
     { key: 'unassigned', label: 'Não atribuídas' },
     { key: 'closed', label: 'Encerradas' },
@@ -37,6 +38,9 @@ export function ConversationList({
 
     let matchesFilter = true;
     switch (filter) {
+      case 'pending':
+        matchesFilter = conv.status === 'pending';
+        break;
       case 'mine':
         matchesFilter = conv.assignedTo === 'agent-1';
         break;
@@ -49,6 +53,12 @@ export function ConversationList({
     }
 
     return matchesSearch && matchesFilter;
+  }).sort((a, b) => {
+    // pending always first
+    if (a.status === 'pending' && b.status !== 'pending') return -1;
+    if (a.status !== 'pending' && b.status === 'pending') return 1;
+    // then by time
+    return b.lastMessageTime.getTime() - a.lastMessageTime.getTime();
   });
 
   return (
@@ -122,8 +132,13 @@ export function ConversationList({
               {/* Content */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="font-medium text-foreground truncate">
+                  <span className="font-medium text-foreground truncate flex items-center gap-2">
                     {conv.contactName}
+                    {conv.status === 'pending' && (
+                      <span className="px-1.5 py-0.5 rounded-full bg-yellow-500/20 text-yellow-500 text-[10px] font-bold uppercase tracking-wider">
+                        Aguardando
+                      </span>
+                    )}
                   </span>
                   <span className="text-xs text-muted-foreground shrink-0">
                     {formatDistanceToNow(conv.lastMessageTime, {

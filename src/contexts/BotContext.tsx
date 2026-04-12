@@ -43,6 +43,8 @@ export function BotProvider({ children }: { children: ReactNode }) {
           id: b.id,
           slug: b.slug,
           name: b.name,
+          bot_name: b.bot_name || '',
+          mode: b.bot_mode || 'personalizado',
           description: b.description,
           icon: b.icon || 'MessageSquare',
           color: b.color || 'blue',
@@ -53,13 +55,13 @@ export function BotProvider({ children }: { children: ReactNode }) {
           zapInstance: b.zapi_instance,
           zapToken: b.zap_token,
         }));
-        
+
         setBots(mappedBots);
 
         // 2. Tenta restaurar o bot selecionado salvo no perfil
         const savedBotId = profileRes.data?.selected_bot_id;
         const savedBot = mappedBots.find(b => b.id === savedBotId);
-        
+
         // Se não houver bot salvo, pega o primeiro da lista
         setSelectedBot(savedBot || mappedBots[0] || null);
       }
