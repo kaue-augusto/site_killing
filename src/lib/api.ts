@@ -433,8 +433,18 @@ export async function createContact(contactData: { name: string, phone: string, 
 }
 
 export async function fetchAgent(): Promise<Agent> {
-  await new Promise(resolve => setTimeout(resolve, 100));
-  return mockAgent;
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    return mockAgent;
+  }
+  return {
+    id: user.id,
+    name: user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'Atendente',
+    email: user.email || 'sem-email@empresa.com',
+    role: user.user_metadata?.role || 'Atendente Senior',
+    avatarUrl: user.user_metadata?.avatar_url,
+    status: 'online',
+  };
 }
 
 export async function reportContact(contactPhone: string, reason: string): Promise<void> {

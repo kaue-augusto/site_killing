@@ -90,24 +90,18 @@ export default function MinhaConta() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="name">Nome Completo</Label>
-              <Input id="name" defaultValue={agent.name} />
+              <Label className="text-muted-foreground">Nome Completo</Label>
+              <div className="h-10 px-3 py-2 border border-border rounded-md bg-muted text-sm flex items-center text-foreground">
+                {agent.name}
+              </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="email">E-mail</Label>
-              <Input id="email" type="email" defaultValue={agent.email} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="phone">Telefone</Label>
-              <Input id="phone" defaultValue="+55 11 99999-9999" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="role">Cargo</Label>
-              <Input id="role" defaultValue={agent.role} disabled />
+              <Label className="text-muted-foreground">E-mail</Label>
+              <div className="h-10 px-3 py-2 border border-border rounded-md bg-muted text-sm flex items-center text-foreground">
+                {agent.email}
+              </div>
             </div>
           </div>
-
-          <Button>Salvar Alterações</Button>
         </CardContent>
       </Card>
 

@@ -13,6 +13,7 @@ import Dashboard from "./pages/Dashboard";
 import Contatos from "./pages/Contatos";
 import MinhaConta from "./pages/MinhaConta";
 import Treinamento from "./pages/Treinamento";
+import Sucesso from "./pages/CentralSucesso";
 import Configuracoes from "./pages/Configuracoes";
 import AceitarConvite from "./pages/AceitarConvite";
 import NotFound from "./pages/NotFound";
@@ -79,6 +80,16 @@ const App = () => (
                   <ProtectedRoute>
                     <MainLayout>
                       <Treinamento />
+                    </MainLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/suporte"
+                element={
+                  <ProtectedRoute>
+                    <MainLayout>
+                      <Sucesso />
                     </MainLayout>
                   </ProtectedRoute>
                 }

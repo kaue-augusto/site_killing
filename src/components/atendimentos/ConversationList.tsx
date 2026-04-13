@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Search, Filter } from 'lucide-react';
 import { Conversation } from '@/lib/api';
 import { Input } from '@/components/ui/input';
@@ -22,6 +22,25 @@ export function ConversationList({
 }: ConversationListProps) {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterType>('all');
+  const [width, setWidth] = useState(320);
+  const [isResizing, setIsResizing] = useState(false);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing) return;
+      setWidth(Math.min(Math.max(e.clientX, 250), 600));
+    };
+    const handleMouseUp = () => setIsResizing(false);
+    
+    if (isResizing) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    }
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing]);
 
   const filters: { key: FilterType; label: string }[] = [
     { key: 'all', label: 'Todas' },
@@ -62,7 +81,18 @@ export function ConversationList({
   });
 
   return (
-    <div className="w-80 border-r border-border flex flex-col bg-card">
+    <div 
+      className="border-r border-border flex flex-col bg-card relative shrink-0"
+      style={{ width: `${width}px` }}
+    >
+      {/* Resizer Handle */}
+      <div 
+        className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-primary/50 bg-transparent transition-colors z-20"
+        onMouseDown={(e) => {
+          e.preventDefault();
+          setIsResizing(true);
+        }}
+      />
       {/* Search */}
       <div className="p-3 border-b border-border">
         <div className="relative">

@@ -13,6 +13,8 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useNavigate } from 'react-router-dom';
 import { Skeleton } from '@/components/ui/skeleton';
+import { SidebarTrigger } from '@/components/ui/sidebar';
+import { Settings } from 'lucide-react';
 
 const botColorClasses: Record<string, string> = {
   blue: 'bg-blue-500',
@@ -58,6 +60,7 @@ export function TopBar() {
   return (
     <header className="h-14 border-b border-border bg-card flex items-center justify-between px-6">
       <div className="flex items-center gap-4">
+        <SidebarTrigger className="-ml-4 mr-2 hidden md:flex" />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" className="gap-2 bg-secondary border-border">
@@ -99,22 +102,7 @@ export function TopBar() {
       </div>
 
       <div className="flex items-center gap-3">
-        <div className="hidden md:flex gap-1">
-          {bots.map((bot) => (
-            <button
-              key={bot.id}
-              onClick={() => setSelectedBot(bot)}
-              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200 flex items-center gap-1.5 ${
-                selectedBot?.id === bot.id
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-secondary text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <DynamicIcon name={bot.icon} className="w-3.5 h-3.5" />
-              {bot.name}
-            </button>
-          ))}
-        </div>
+
 
         {user && (
           <DropdownMenu>
@@ -147,6 +135,10 @@ export function TopBar() {
               <DropdownMenuItem onClick={() => navigate('/conta')} className="cursor-pointer">
                 <User className="mr-2 h-4 w-4" />
                 Minha Conta
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate('/configuracoes')} className="cursor-pointer">
+                <Settings className="mr-2 h-4 w-4" />
+                Configurações
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer text-destructive">

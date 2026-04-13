@@ -1,11 +1,12 @@
 import { useLocation } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
 import { 
   MessageSquare, 
   LayoutDashboard, 
   Users, 
   User, 
   GraduationCap,
-  Settings,
+  LifeBuoy,
   Headphones
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
@@ -25,13 +26,13 @@ const menuItems = [
   { title: 'Atendimentos', url: '/', icon: MessageSquare },
   { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard },
   { title: 'Contatos', url: '/contatos', icon: Users },
-  { title: 'Minha Conta', url: '/conta', icon: User },
   { title: 'Treinamento', url: '/treinamento', icon: GraduationCap },
-  { title: 'Configurações', url: '/configuracoes', icon: Settings },
+  { title: 'Suporte', url: '/suporte', icon: LifeBuoy },
 ];
 
 export function AppSidebar() {
   const location = useLocation();
+  const { profile } = useAuth();
 
   return (
     <Sidebar className="border-r border-sidebar-border">
@@ -80,7 +81,7 @@ export function AppSidebar() {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-sidebar-accent-foreground truncate">
-              Ana Atendente
+              {profile?.name || 'Carregando...'}
             </p>
             <p className="text-xs text-sidebar-foreground flex items-center gap-1">
               <span className="w-2 h-2 rounded-full bg-online"></span>
