@@ -54,6 +54,7 @@ export function BotProvider({ children }: { children: ReactNode }) {
           instructions: b.instructions || '',
           zapInstance: b.zapi_instance,
           zapToken: b.zap_token,
+          exigir_matricula: b.exigir_matricula || false,
         }));
 
         setBots(mappedBots);

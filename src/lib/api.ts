@@ -505,14 +505,19 @@ export async function generateWhatsAppQR(instanceId: string, token: string): Pro
 
 export async function saveBotTraining(
   botSlug: string,
-  config: { instructions: string, user_id: string; name?: string; mode?: string }
+  config: { instructions: string, user_id: string; name?: string; mode?: string; exigir_matricula?: boolean }
 ): Promise<void> {
   const { data, error } = await supabase
     .from('bots')
-    .update({ instructions: config.instructions, bot_name: config.name, bot_mode: config.mode })
+    .update({ 
+      instructions: config.instructions, 
+      bot_name: config.name, 
+      bot_mode: config.mode,
+      exigir_matricula: config.exigir_matricula 
+    })
     .eq('slug', botSlug)
     .eq('user_id', config.user_id)
-    .select(); 
+    .select();
 
   if (error) throw error;
   if (!data || data.length === 0) throw new Error("Não foi possível encontrar o bot para atualizar");

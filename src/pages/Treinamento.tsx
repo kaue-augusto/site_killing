@@ -43,6 +43,7 @@ export default function Treinamento() {
   const [instructions, setInstructions] = useState('');
   const [botName, setBotName] = useState(selectedBot?.bot_name || '');
   const [autoTransfer, setAutoTransfer] = useState(true);
+  const [authorizationEnabled, setAuthorizationEnabled] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   // Fontes State (NOVO)
@@ -76,6 +77,108 @@ export default function Treinamento() {
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   // 1. Crie o estado inicial
   const [n8nWebhookUrl, setN8nWebhookUrl] = useState('');
+
+  // Estados de Matriculas (NOVO)
+  const [matriculasList, setMatriculasList] = useState<any[]>([]);
+  const [novaMatricula, setNovaMatricula] = useState('');
+  const [novoNomeMatricula, setNovoNomeMatricula] = useState('');
+  const [isUploadingCsv, setIsUploadingCsv] = useState(false);
+  const csvFileInputRef = useRef<HTMLInputElement>(null);
+
+  const fetchMatriculasDoBot = async () => {
+    if (!selectedBot?.id) return;
+    try {
+      const { data, error } = await supabase
+        .from('bot_matriculas')
+        .select('*')
+        .eq('bot_id', selectedBot.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setMatriculasList(data || []);
+    } catch (error) {
+      console.error("Erro ao buscar matriculas:", error);
+    }
+  };
+
+  const handleAddMatricula = async () => {
+    if (!novaMatricula.trim() || !selectedBot?.id) return;
+    try {
+      const { error } = await supabase
+        .from('bot_matriculas')
+        .insert([{ bot_id: selectedBot.id, matricula: novaMatricula, nome: novoNomeMatricula }]);
+      
+      if (error) throw error;
+      
+      toast({ title: 'Matrícula adicionada!', description: 'Usuário autorizado concluído com sucesso.' });
+      setNovaMatricula('');
+      setNovoNomeMatricula('');
+      fetchMatriculasDoBot();
+    } catch(err) {
+      toast({ title: 'Erro', description: 'Não foi possível adicionar matrícula.', variant: 'destructive' });
+    }
+  };
+
+  const handleRemoverMatricula = async (id: string) => {
+    try {
+      const { error } = await supabase.from('bot_matriculas').delete().eq('id', id);
+      if (error) throw error;
+      toast({ title: 'Removido', description: 'Matrícula excluída da base de autorizados.' });
+      fetchMatriculasDoBot();
+    } catch (err) {
+      toast({ title: 'Erro', description: 'Falha ao remover.', variant: 'destructive' });
+    }
+  };
+
+  const handleCsvUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !selectedBot?.id) return;
+    
+    setIsUploadingCsv(true);
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const text = e.target?.result as string;
+        const lines = text.split('\n');
+        const rowsToInsert = [];
+        
+        // Pular cabeçalho assumindo que a linha 1 é cabeçalho
+        for (let i = 1; i < lines.length; i++) {
+          const line = lines[i].trim();
+          if (!line) continue;
+          
+          // Suportando virgula e ponto e virgula
+          const cols = line.split(/[;,]/);
+          const matricula = cols[0]?.trim();
+          const nome = cols[1]?.trim() || '';
+          
+          if (matricula) {
+            rowsToInsert.push({
+              bot_id: selectedBot.id,
+              matricula,
+              nome
+            });
+          }
+        }
+        
+        if (rowsToInsert.length > 0) {
+          const { error } = await supabase.from('bot_matriculas').insert(rowsToInsert);
+          if (error) throw error;
+          
+          toast({ title: 'Sucesso!', description: `${rowsToInsert.length} matrículas importadas do arquivo.` });
+          fetchMatriculasDoBot();
+        } else {
+          toast({ title: 'Aviso', description: 'Nenhum dado válido encontrado. O arquivo deve ter uma coluna de Matrícula.', variant: 'destructive' });
+        }
+      } catch (err) {
+        toast({ title: 'Erro na importação', description: 'Certifique-se que o arquivo é CSV e bem formatado.', variant: 'destructive' });
+      } finally {
+        setIsUploadingCsv(false);
+        if (csvFileInputRef.current) csvFileInputRef.current.value = '';
+      }
+    };
+    reader.readAsText(file);
+  };
 
   // 1. A FUNÇÃO PRINCIPAL (É o seu código exato, mas agora aceita arquivos de qualquer lugar)
   const processFiles = async (files: File[]) => {
@@ -191,6 +294,7 @@ export default function Treinamento() {
       setInstructions(selectedBot.instructions || '');
       setBotName(selectedBot.bot_name || '');
       setSelectedMode(selectedBot.mode || 'suporte');
+      setAuthorizationEnabled(selectedBot.exigir_matricula || false);
 
       // === Busca os PDFs ===
       const loadPdfs = async () => {
@@ -227,6 +331,7 @@ export default function Treinamento() {
       fetchSitesDoBot();
 
       fetchTextosDoBot();
+      fetchMatriculasDoBot();
     }
 
     // --- LÓGICA DE VERIFICAÇÃO AUTOMÁTICA (POLLING) ---
@@ -273,7 +378,8 @@ export default function Treinamento() {
         name: botName, // Atualiza o nome oficial do bot no banco
         instructions: instructions, // Salva o texto completo com a injeção do nome
         mode: selectedMode,
-        user_id: user.id
+        user_id: user.id,
+        exigir_matricula: authorizationEnabled
       });
 
       await refreshBots();
@@ -540,8 +646,8 @@ export default function Treinamento() {
       </div>
 
       <Tabs defaultValue="treinamento" className="w-full">
-        {/* Alterado para 3 colunas para acomodar a nova aba */}
-        <TabsList className="grid w-full grid-cols-3 max-w-2xl bg-secondary/50 p-1 rounded-xl">
+        {/* Alterado para 4 colunas para acomodar a nova aba Avançados */}
+        <TabsList className="grid w-full grid-cols-4 max-w-3xl bg-secondary/50 p-1 rounded-xl">
           <TabsTrigger value="treinamento" className="flex items-center gap-2 rounded-lg">
             <MessageCircle className="w-4 h-4" /> Configurações
           </TabsTrigger>
@@ -550,6 +656,9 @@ export default function Treinamento() {
           </TabsTrigger>
           <TabsTrigger value="integracoes" className="flex items-center gap-2 rounded-lg">
             <Wifi className="w-4 h-4" /> Integrações
+          </TabsTrigger>
+          <TabsTrigger value="avancados" className="flex items-center gap-2 rounded-lg">
+            <Settings2 className="w-4 h-4" /> Avançados
           </TabsTrigger>
         </TabsList>
 
@@ -1098,9 +1207,7 @@ export default function Treinamento() {
               <CardContent className="flex items-center gap-4 p-6">
                 <div className="w-12 h-12 rounded-xl bg-[#0088cc] flex items-center justify-center">
                   <Send className="w-6 h-6 text-white" />
-                </div>
-                <div className="flex-1">
-                  <p className="font-medium text-foreground">Telegram</p>
+                        <p className="font-medium text-foreground">Telegram</p>
                   <p className="text-sm text-muted-foreground">Em breve</p>
                 </div>
                 <Badge variant="outline">Em breve</Badge>
@@ -1108,6 +1215,102 @@ export default function Treinamento() {
             </Card>
           </div>
 
+        </TabsContent>
+
+        {/* --- ABA 4: AVANÇADOS --- */}
+        <TabsContent value="avancados" className="space-y-6 mt-6">
+          <Card className="bg-card border-border">
+            <CardHeader>
+              <CardTitle>Autorização Avançada</CardTitle>
+              <CardDescription>
+                Gerencie permissões estritas para usuários matriculados no seu banco local.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="flex items-center justify-between p-4 bg-secondary rounded-lg">
+                <div>
+                  <p className="font-medium text-foreground">Verificação de Manutenção/Autorização</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Exigir que a matrícula do usuário ou informações estejam presentes e autorizadas na base de dados.
+                  </p>
+                </div>
+                <Switch
+                  checked={authorizationEnabled}
+                  onCheckedChange={setAuthorizationEnabled}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* NOVO BLOCO DE MATRICULAS */}
+          <Card className="bg-card border-border mt-6">
+            <CardHeader>
+              <CardTitle>Base de Usuários Autorizados</CardTitle>
+              <CardDescription>Envie matrículas autorizadas a realizar atendimentos no robô.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Adição Manual */}
+              <div className="flex gap-3 items-end">
+                <div className="flex-1">
+                  <Label className="text-xs mb-1 block">Matrícula</Label>
+                  <Input placeholder="Ex: 4616" value={novaMatricula} onChange={e => setNovaMatricula(e.target.value)} />
+                </div>
+                <div className="flex-1">
+                  <Label className="text-xs mb-1 block">Nome do Usuário</Label>
+                  <Input placeholder="Ex: Kauê Augusto" value={novoNomeMatricula} onChange={e => setNovoNomeMatricula(e.target.value)} />
+                </div>
+                <Button onClick={handleAddMatricula}>
+                  <Plus className="w-4 h-4 mr-2" /> Adicionar
+                </Button>
+              </div>
+
+              <div className="relative flex py-3 items-center">
+                  <div className="flex-grow border-t border-border"></div>
+                  <span className="flex-shrink-0 mx-4 text-muted-foreground text-xs uppercase">Ou importar em lote</span>
+                  <div className="flex-grow border-t border-border"></div>
+              </div>
+
+              {/* Importação CSV */}
+              <div>
+                <input type="file" accept=".csv" className="hidden" ref={csvFileInputRef} onChange={handleCsvUpload} />
+                <Button variant="outline" className="w-full border-dashed" onClick={() => !isUploadingCsv && csvFileInputRef.current?.click()}>
+                  {isUploadingCsv ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <UploadCloud className="w-4 h-4 mr-2" />}
+                  Importar Tabela (.CSV)
+                </Button>
+                <p className="text-xs text-muted-foreground mt-2 text-center">Faça o download da sua planilha como 'Valores Separados por Vírgulas (.csv)'. A coluna A deve ser a Matrícula e a coluna B o Nome.</p>
+              </div>
+
+              {/* Lista de matriculas */}
+              {matriculasList.length > 0 && (
+                <div className="mt-6 border rounded-lg overflow-hidden">
+                  <div className="max-h-64 overflow-y-auto custom-scrollbar">
+                    <table className="w-full text-sm text-left align-middle">
+                      <thead className="text-xs text-muted-foreground bg-secondary/50 sticky top-0">
+                        <tr>
+                          <th className="px-4 py-3 font-medium">Matrícula</th>
+                          <th className="px-4 py-3 font-medium">Nome</th>
+                          <th className="px-4 py-3 font-medium text-right">Ação</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        {matriculasList.map(item => (
+                          <tr key={item.id} className="hover:bg-muted/50">
+                            <td className="px-4 py-3 font-medium">{item.matricula}</td>
+                            <td className="px-4 py-3">{item.nome || '-'}</td>
+                            <td className="px-4 py-3 text-right">
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-red-500 hover:bg-red-500/10" onClick={() => handleRemoverMatricula(item.id)}>
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>
