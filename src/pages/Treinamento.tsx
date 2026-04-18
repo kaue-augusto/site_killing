@@ -289,8 +289,10 @@ export default function Treinamento() {
   // 2. DEPOIS: O useEffect para sincronização
   useEffect(() => {
     if (selectedBot?.id) {
-      // Limpa o QR Code anterior ao trocar de bot
+      // Limpa o estado anterior ao trocar de bot
       setQrCode(null);
+      setWhatsappConnected(false);
+      setWhatsappPhone(null);
       setInstructions(selectedBot.instructions || '');
       setBotName(selectedBot.bot_name || '');
       setSelectedMode(selectedBot.mode || 'suporte');
@@ -338,12 +340,17 @@ export default function Treinamento() {
     let intervalId: NodeJS.Timeout;
 
     const checkConnection = async () => {
-      if (!selectedBot?.zapInstance || !selectedBot?.zapToken) return;
+      if (!selectedBot?.zapInstance || !selectedBot?.zapToken) {
+        setWhatsappConnected(false);
+        setWhatsappPhone(null);
+        return;
+      }
 
       try {
         const status = await getWhatsAppStatus(selectedBot.zapInstance, selectedBot.zapToken);
         setWhatsappConnected(status.connected);
         if (status.phone) setWhatsappPhone(status.phone);
+        else setWhatsappPhone(null);
 
         if (status.connected) {
           setQrCode(null);
@@ -351,6 +358,8 @@ export default function Treinamento() {
         }
       } catch (error) {
         console.error("Erro ao verificar status na Z-API");
+        setWhatsappConnected(false);
+        setWhatsappPhone(null);
       }
     };
 
