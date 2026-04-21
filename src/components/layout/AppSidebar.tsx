@@ -7,7 +7,8 @@ import {
   User, 
   GraduationCap,
   LifeBuoy,
-  Headphones
+  Headphones,
+  LineChart
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import {
@@ -25,6 +26,7 @@ import {
 const menuItems = [
   { title: 'Atendimentos', url: '/', icon: MessageSquare },
   { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard },
+  { title: 'CRM', url: '/crm', icon: LineChart },
   { title: 'Contatos', url: '/contatos', icon: Users },
   { title: 'Treinamento', url: '/treinamento', icon: GraduationCap },
   { title: 'Suporte', url: '/suporte', icon: LifeBuoy },

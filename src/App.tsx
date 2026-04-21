@@ -16,6 +16,7 @@ import Treinamento from "./pages/Treinamento";
 import Sucesso from "./pages/CentralSucesso";
 import Configuracoes from "./pages/Configuracoes";
 import AceitarConvite from "./pages/AceitarConvite";
+import Crm from "./pages/Crm";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -90,6 +91,16 @@ const App = () => (
                   <ProtectedRoute>
                     <MainLayout>
                       <Sucesso />
+                    </MainLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/crm"
+                element={
+                  <ProtectedRoute>
+                    <MainLayout>
+                      <Crm />
                     </MainLayout>
                   </ProtectedRoute>
                 }
