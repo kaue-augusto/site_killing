@@ -1,0 +1,182 @@
+{
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "trigger-workflow",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [400, 300]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "crm_leads",
+        "limit": 1,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "contact_phone",
+              "condition": "eq",
+              "keyValue": "={{ $('Execute Workflow Trigger').first().json.phone }}"
+            },
+            {
+              "keyName": "bot_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Execute Workflow Trigger').first().json.bot_id }}"
+            }
+          ]
+        }
+      },
+      "id": "buscar-lead",
+      "name": "Buscar Lead",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [620, 300],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "dDL4BJuYkhB7c9qm",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "check-exists",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-existe",
+      "name": "Já existe?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [840, 300]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "crm_leads",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $json.id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldId": "status", "fieldValue": "={{ $('Execute Workflow Trigger').first().json.status }}" },
+            { "fieldId": "score", "fieldValue": "={{ $('Execute Workflow Trigger').first().json.score }}" },
+            { "fieldId": "tags", "fieldValue": "={{ ($('Execute Workflow Trigger').first().json.tags || '').split(',') }}" },
+            { "fieldId": "summary", "fieldValue": "={{ $('Execute Workflow Trigger').first().json.resumo }}" },
+            { "fieldId": "last_interaction", "fieldValue": "={{ new Date().toISOString() }}" }
+          ]
+        }
+      },
+      "id": "update-lead",
+      "name": "Atualizar Lead",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1100, 200],
+      "credentials": {
+        "supabaseApi": {
+          "id": "dDL4BJuYkhB7c9qm",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "tableId": "crm_leads",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldId": "bot_id", "fieldValue": "={{ $('Execute Workflow Trigger').first().json.bot_id }}" },
+            { "fieldId": "chat_id", "fieldValue": "={{ $('Execute Workflow Trigger').first().json.chat_id }}" },
+            { "fieldId": "contact_phone", "fieldValue": "={{ $('Execute Workflow Trigger').first().json.phone }}" },
+            { "fieldId": "contact_name", "fieldValue": "={{ $('Execute Workflow Trigger').first().json.nome_cliente }}" },
+            { "fieldId": "status", "fieldValue": "={{ $('Execute Workflow Trigger').first().json.status }}" },
+            { "fieldId": "score", "fieldValue": "={{ $('Execute Workflow Trigger').first().json.score }}" },
+            { "fieldId": "tags", "fieldValue": "={{ ($('Execute Workflow Trigger').first().json.tags || '').split(',') }}" },
+            { "fieldId": "summary", "fieldValue": "={{ $('Execute Workflow Trigger').first().json.resumo }}" },
+            { "fieldId": "last_interaction", "fieldValue": "={{ new Date().toISOString() }}" }
+          ]
+        }
+      },
+      "id": "create-lead",
+      "name": "Criar Lead",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1100, 420],
+      "credentials": {
+        "supabaseApi": {
+          "id": "dDL4BJuYkhB7c9qm",
+          "name": "Supabase account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "Buscar Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Lead": {
+      "main": [
+        [
+          {
+            "node": "Já existe?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Já existe?": {
+      "main": [
+        [
+          {
+            "node": "Atualizar Lead",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Criar Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

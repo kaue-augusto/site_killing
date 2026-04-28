@@ -10,6 +10,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar as CalendarUI } from '@/components/ui/calendar';
 import {
   Search, Bot, Phone, CheckCircle2, XCircle, Clock, Sparkles,
   LayoutGrid, List, Calendar, LineChart, Mail, Activity, Share2,
@@ -52,6 +53,7 @@ interface Lead {
   tags: string[];
   summary: string;
   lastInteraction: string;
+  lastInteractionRaw: string;
   createdAt: string; // ISO format date string for filtering
   email?: string;
   activities: ActivityLog[];
@@ -77,7 +79,8 @@ function mapDbToLead(row: any): Lead {
     tags: Array.isArray(row.tags) ? row.tags : [],
     summary: row.summary || '',
     lastInteraction: formatRelativeTime(row.last_interaction),
-    createdAt: row.created_at,
+    lastInteractionRaw: row.last_interaction || new Date(row.created_at || Date.now()).toISOString(),
+    createdAt: row.created_at || new Date().toISOString(),
     activities: [],
   };
 }
@@ -106,6 +109,7 @@ export default function CRM() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [date, setDate] = useState<Date | undefined>(new Date());
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -722,12 +726,84 @@ export default function CRM() {
             </div>
           </TabsContent>
 
-          {/* === OUTRAS ABAS VAZIAS MOCKADAS COM MENSAGEM CLARA === */}
-          <TabsContent value="calendario" className="m-0 focus-visible:outline-none mt-4">
-            <div className="p-12 text-center bg-muted/5 min-h-[400px] flex flex-col justify-center items-center rounded-lg border border-border">
-              <Calendar className="w-16 h-16 text-muted-foreground/30 mb-4" />
-              <h2 className="text-xl font-bold text-foreground">Calendário em Desenvolvimento</h2>
-              <p className="text-muted-foreground mt-2 max-w-md text-center">A visualização de reuniões e agendamentos com leads estará disponível em breve.</p>
+          {/* === ABA CALENDARIO (AGENDA DO DIA E REUNIÕES ) === */}
+          <TabsContent value="calendario" className="m-0 focus-visible:outline-none p-6 mt-4">
+            <div className="w-full max-w-6xl mx-auto">
+              <div className="flex flex-col md:flex-row gap-8">
+                {/* Lateral Esquerda - DatePicker Nav */}
+                <div className="w-full md:w-[320px] flex-shrink-0 space-y-6">
+                  <div className="bg-card border border-border rounded-xl p-4 shadow-sm">
+                    <CalendarUI
+                      mode="single"
+                      selected={date}
+                      onSelect={setDate}
+                      className="rounded-md mx-auto"
+                    />
+                  </div>
+                  <div className="bg-secondary/20 border border-border rounded-xl p-6 shadow-sm">
+                    <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider mb-4 flex items-center gap-2">
+                       <LineChart className="w-4 h-4 text-primary" /> Resumo do Dia
+                    </h3>
+                    <div className="space-y-3">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Follow-ups</span>
+                        <span className="font-bold text-foreground">
+                           {leads.filter(l => l.score > 70 && l.status !== 'ganho' && l.status !== 'perdido').length}
+                        </span>
+                      </div>
+                       <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Leads Novos</span>
+                        <span className="font-bold text-green-500">
+                          {leads.filter(l => l.status === 'triagem').length}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Lateral Direita - Timeline da Agenda */}
+                <div className="flex-1 bg-card rounded-xl border border-border shadow-sm flex flex-col h-[700px]">
+                  <div className="p-6 border-b border-border flex justify-between items-center bg-card rounded-t-xl">
+                    <div>
+                      <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+                         Agenda Diária
+                      </h2>
+                      <p className="text-muted-foreground text-sm mt-1">
+                        {date ? date.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }) : 'Selecione uma data'}
+                      </p>
+                    </div>
+                    <Button size="sm" className="bg-primary text-primary-foreground gap-2">
+                      <Plus className="w-4 h-4" /> Novo Agendamento
+                    </Button>
+                  </div>
+                  <div className="p-6 flex-1 overflow-y-auto custom-scrollbar bg-background rounded-b-xl">
+                    <div className="space-y-4">
+                      {leads.filter(l => l.status !== 'ganho' && l.status !== 'perdido').slice(0, 5).map((lead, i) => (
+                        <div key={lead.id} className="group flex gap-4 p-4 rounded-xl border border-border/50 bg-card hover:border-primary/30 hover:shadow-md transition-all cursor-pointer" onClick={() => handleCardClick(lead)}>
+                           <div className="w-12 h-12 rounded-full bg-primary/10 flex-shrink-0 flex items-center justify-center text-primary font-bold">
+                             {lead.score > 80 ? '🔥' : '📞'}
+                           </div>
+                           <div className="flex-1">
+                             <div className="flex justify-between items-start">
+                               <h3 className="font-semibold text-foreground">{lead.name}</h3>
+                               <Badge variant="outline" className={lead.score > 80 ? 'text-orange-500 border-orange-500' : ''}>Score {lead.score}</Badge>
+                             </div>
+                             <p className="text-sm text-muted-foreground mt-1 line-clamp-1">{lead.summary || 'Necessita contato e nutrição.'}</p>
+                             <div className="flex gap-2 mt-3">
+                                {lead.tags.map(t => <span key={t} className="text-[10px] bg-secondary px-2 py-0.5 rounded text-muted-foreground">{t}</span>)}
+                             </div>
+                           </div>
+                        </div>
+                      ))}
+                      {leads.filter(l => l.status !== 'ganho' && l.status !== 'perdido').length === 0 && (
+                         <div className="text-center py-12 text-muted-foreground">
+                            Nenhum follow-up pendente para este dia.
+                         </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </TabsContent>
 
@@ -824,24 +900,87 @@ export default function CRM() {
           </TabsContent>
 
           <TabsContent value="atividades" className="m-0 focus-visible:outline-none p-6 mt-4">
-            <div className="w-full max-w-4xl mx-auto space-y-6">
-              <h2 className="text-2xl font-bold mb-8 text-foreground border-b border-border pb-4">Log Global de Atividades</h2>
-              {leads.flatMap(l => l.activities.map(a => ({ ...a, leadName: l.name }))).sort((a, b) => b.id.localeCompare(a.id)).map((act, index) => (
-                <div key={`${act.id}-${index}`} className="flex gap-4 items-start bg-card p-4 rounded-xl border border-border shadow-sm">
-                  <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
-                    {act.type === 'comment' && <MessageSquare className="w-5 h-5 text-primary" />}
-                    {act.type === 'move' && <LayoutGrid className="w-5 h-5 text-orange-500" />}
-                    {act.type === 'system' && <Bot className="w-5 h-5 text-blue-500" />}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="font-semibold text-foreground text-sm">{act.author} <span className="text-muted-foreground font-normal">em</span> {act.leadName}</span>
-                      <span className="text-xs text-muted-foreground bg-secondary px-2 py-1 rounded">{act.timestamp}</span>
-                    </div>
-                    <p className="text-sm text-muted-foreground leading-relaxed mt-1">{act.content}</p>
-                  </div>
+            <div className="w-full max-w-4xl mx-auto space-y-6 pb-12">
+              <div className="flex justify-between items-center border-b border-border pb-4 mb-8">
+                <div>
+                   <h2 className="text-2xl font-bold text-foreground">Log Global de Atividades</h2>
+                   <p className="text-muted-foreground text-sm uppercase tracking-wider font-semibold mt-1">Sincronização em tempo real</p>
                 </div>
-              ))}
+                <Badge variant="secondary" className="bg-primary/10 text-primary hover:bg-primary/20"><Activity className="w-3 h-3 mr-2 animate-pulse" /> Ativo</Badge>
+              </div>
+              
+              <div className="space-y-6">
+                {leads
+                  .flatMap(l => {
+                    // Mapeia entrada e última atualização para todos os leads para gerar timeline rica
+                    const events = [];
+                    events.push({
+                      id: `create-${l.id}`,
+                      type: 'system',
+                      label: 'Novo Lead Capturado',
+                      author: 'Assistente de IA',
+                      leadName: l.name,
+                      content: `Lead entrou na plataforma com status ${l.status.toUpperCase()}.`,
+                      timestampRaw: l.createdAt,
+                      score: l.score
+                    });
+                    if (l.lastInteractionRaw && l.lastInteractionRaw !== l.createdAt) {
+                        events.push({
+                          id: `update-${l.id}`,
+                          type: 'move',
+                          label: 'Classificação Atualizada',
+                          author: 'Agente n8n',
+                          leadName: l.name,
+                          content: l.summary || `O lead foi classificado como ${l.status.toUpperCase()} e recebeu tags.`,
+                          timestampRaw: l.lastInteractionRaw,
+                          score: l.score
+                        });
+                    }
+                    return events;
+                  })
+                  .sort((a, b) => new Date(b.timestampRaw).getTime() - new Date(a.timestampRaw).getTime())
+                  .map((act) => (
+                    <div key={act.id} className="relative pl-8">
+                      {/* Timeline Line Vertical */}
+                      <div className="absolute left-[15px] top-8 bottom-[-24px] w-0.5 bg-border rounded-full" />
+                      
+                      {/* Ícone */}
+                      <div className="absolute left-0 top-0 w-8 h-8 rounded-full border-4 border-background bg-secondary flex items-center justify-center z-10">
+                        {act.type === 'system' && <Bot className="w-3 h-3 text-blue-500" />}
+                        {act.type === 'move' && <LayoutGrid className="w-3 h-3 text-orange-500" />}
+                      </div>
+
+                      <div className="flex gap-4 items-start bg-card/80 p-5 rounded-xl border border-border shadow-sm hover:border-primary/20 transition-all cursor-default">
+                        <div className="flex-1">
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="font-semibold text-foreground text-sm flex items-center gap-2">
+                               {act.label}
+                               <span className="text-muted-foreground font-normal text-xs px-2 py-0.5 bg-secondary rounded-full">em {act.leadName}</span>
+                            </span>
+                            <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
+                               {formatRelativeTime(act.timestampRaw)}
+                            </span>
+                          </div>
+                          <p className="text-sm text-foreground/80 leading-relaxed bg-background/50 border border-border/50 p-3 rounded-lg mt-2">
+                            {act.content}
+                          </p>
+                          <div className="flex gap-2 mt-3 items-center">
+                             <Badge variant="outline" className="text-[10px] uppercase font-semibold text-muted-foreground border-border bg-transparent">Autoria: {act.author}</Badge>
+                             <div className={`text-[10px] font-bold ${act.score > 70 ? 'text-orange-500' : 'text-blue-500'}`}>
+                                Score Atual: {act.score}
+                             </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                ))}
+                
+                {leads.length === 0 && (
+                   <div className="text-center py-12 text-muted-foreground">
+                      Nenhuma atividade registrada no momento.
+                   </div>
+                )}
+              </div>
             </div>
           </TabsContent>
 
