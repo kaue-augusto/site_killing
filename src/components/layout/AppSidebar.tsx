@@ -1,10 +1,10 @@
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { 
-  MessageSquare, 
-  LayoutDashboard, 
-  Users, 
-  User, 
+import {
+  MessageSquare,
+  LayoutDashboard,
+  Users,
+  User,
   GraduationCap,
   LifeBuoy,
   Headphones,
@@ -44,15 +44,15 @@ export function AppSidebar() {
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
       <SidebarHeader className="border-b border-sidebar-border flex flex-row items-center justify-between p-4 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-2">
         <div className="flex items-center gap-3">
-          <button 
+          <button
             onClick={toggleSidebar}
             className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center shrink-0 cursor-pointer hover:bg-primary/90 transition-colors group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:h-8"
           >
             <Bot className="w-5 h-5 text-primary-foreground group-data-[collapsible=icon]:w-4 group-data-[collapsible=icon]:h-4" />
           </button>
           <div className="group-data-[collapsible=icon]:hidden">
-            <h1 className="font-semibold text-sidebar-accent-foreground tracking-tight">KISA TECH</h1>
-            <p className="text-xs text-sidebar-foreground">Painel de Atendimento</p>
+            <h1 className="font-semibold text-sidebar-accent-foreground tracking-tight">KISABOT</h1>
+            <p className="text-xs text-sidebar-foreground">Agentes inteligentes</p>
           </div>
         </div>
         <SidebarTrigger className="group-data-[collapsible=icon]:hidden text-muted-foreground hover:text-foreground" />
