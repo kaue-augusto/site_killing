@@ -151,18 +151,39 @@ export function ChatWindow({
                         : 'chat-bubble-received'
                     }`}
                   >
+                    {/* Detectar se é áudio pelo tipo ou pela extensão do arquivo */}
+                    {(msg.type === 'audio' || (msg.attachmentUrl && /\.(mp3|wav|ogg|m4a|opus|aac)(\?.*)?$/i.test(msg.attachmentUrl))) && (
+                      <audio controls src={msg.attachmentUrl || msg.content} className="max-w-full mb-1" />
+                    )}
+                    
                     {msg.type === 'image' && (
                       <img src={msg.attachmentUrl || msg.content} alt="Imagem" className="max-w-full rounded-lg mb-1" />
                     )}
-                    {msg.type === 'audio' && (
-                      <audio controls src={msg.attachmentUrl || msg.content} className="max-w-full mb-1" />
-                    )}
+                    
                     {(msg.type === 'document' || msg.type === 'file' || msg.type === 'pdf') && (
                       <a href={msg.attachmentUrl || msg.content} target="_blank" rel="noreferrer" className="flex items-center gap-2 underline mb-1 font-semibold">
                         <File className="w-4 h-4" /> Documento Anexado
                       </a>
                     )}
-                    {msg.type === 'text' && <p className="text-sm break-words whitespace-pre-wrap">{msg.content}</p>}
+                    
+                    {/* Exibir transcrição ou legenda se houver anexo e conteúdo de texto */}
+                    {msg.type !== 'text' && msg.attachmentUrl && msg.content && !msg.content.startsWith('http') && (
+                      <p className="text-sm break-words whitespace-pre-wrap mt-2 pt-2 border-t border-foreground/10 italic">
+                        {msg.content}
+                      </p>
+                    )}
+
+                    {msg.type === 'text' && (
+                       <div className="space-y-2">
+                         <p className="text-sm break-words whitespace-pre-wrap">{msg.content}</p>
+                         {/* Se for texto mas tiver um anexo que não foi pego acima, mostrar como link se não for áudio já exibido */}
+                         {msg.attachmentUrl && !/\.(mp3|wav|ogg|m4a|opus|aac|jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(msg.attachmentUrl) && (
+                            <a href={msg.attachmentUrl} target="_blank" rel="noreferrer" className="flex items-center gap-2 underline text-xs opacity-70">
+                              <Paperclip className="w-3 h-3" /> Ver anexo
+                            </a>
+                         )}
+                       </div>
+                    )}
                     {!['image', 'audio', 'document', 'file', 'pdf', 'text'].includes(msg.type) && (
                        <p className="text-sm break-words whitespace-pre-wrap">{msg.content}</p>
                     )}

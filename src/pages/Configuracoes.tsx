@@ -93,6 +93,13 @@ export default function Configuracoes() {
   const [isSending, setIsSending] = useState(false);
   const [generatedInviteLink, setGeneratedInviteLink] = useState<string | null>(null);
 
+  // Edit Permissions State
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [editRole, setEditRole] = useState<AppRole>('atendente');
+  const [editSelectedBotIds, setEditSelectedBotIds] = useState<string[]>([]);
+  const [isSavingRole, setIsSavingRole] = useState(false);
+
   // Fetch users and invites on mount
   useEffect(() => {
     fetchData();
@@ -257,43 +264,77 @@ export default function Configuracoes() {
     toast.success('Convite cancelado');
   };
 
-  const handleUpdateRole = async (userId: string, currentRole: AppRole, newRole: AppRole) => {
-    // Find the user's admin/global role
-    const userToUpdate = users.find(u => u.id === userId);
-    const globalRoleEntry = userToUpdate?.roles.find(r => r.bot_id === null);
+  const handleOpenEditDialog = (userItem: UserWithRoles) => {
+    setEditingUserId(userItem.id);
+    const primaryRole = getPrimaryRole(userItem.roles) || 'atendente';
+    setEditRole(primaryRole);
+    setEditSelectedBotIds(userItem.roles.map(r => r.bot_id).filter(Boolean) as string[]);
+    setIsEditDialogOpen(true);
+  };
 
-    if (globalRoleEntry) {
-      // Update existing global role
-      const { error } = await supabase
-        .from('user_roles')
-        .update({ role: newRole })
-        .eq('id', globalRoleEntry.id);
-
-      if (error) {
-        console.error('Error updating role:', error);
-        toast.error('Erro ao atualizar permissão');
-        return;
-      }
-    } else {
-      // Insert new global role
-      const { error } = await supabase
-        .from('user_roles')
-        .insert({ 
-          user_id: userId, 
-          role: newRole, 
-          bot_id: null,
-          assigned_by: user?.id 
-        });
-
-      if (error) {
-        console.error('Error inserting role:', error);
-        toast.error('Erro ao atualizar permissão');
-        return;
-      }
+  const handleSavePermissions = async () => {
+    if (!editingUserId) return;
+    
+    if (editRole !== 'admin' && editSelectedBotIds.length === 0) {
+      toast.error('Selecione pelo menos um bot para este usuário');
+      return;
     }
 
-    await fetchUsers();
-    toast.success('Permissão atualizada com sucesso');
+    setIsSavingRole(true);
+    try {
+      // 1. Delete all existing roles for this user
+      const { error: deleteError } = await supabase
+        .from('user_roles')
+        .delete()
+        .eq('user_id', editingUserId);
+
+      if (deleteError) {
+        toast.error('Erro ao limpar permissões antigas');
+        return;
+      }
+
+      // 2. Insert new roles
+      if (editRole === 'admin') {
+        const { error: insertError } = await supabase
+          .from('user_roles')
+          .insert({
+            user_id: editingUserId,
+            role: editRole,
+            bot_id: null,
+            assigned_by: user?.id
+          });
+          
+        if (insertError) {
+          toast.error('Erro ao salvar nova permissão');
+          return;
+        }
+      } else {
+        const roleInserts = editSelectedBotIds.map(botId => ({
+          user_id: editingUserId,
+          role: editRole,
+          bot_id: botId,
+          assigned_by: user?.id
+        }));
+
+        const { error: insertError } = await supabase
+          .from('user_roles')
+          .insert(roleInserts);
+
+        if (insertError) {
+          toast.error('Erro ao salvar novas permissões');
+          return;
+        }
+      }
+
+      await fetchUsers();
+      toast.success('Permissões atualizadas com sucesso');
+      setIsEditDialogOpen(false);
+    } catch (err) {
+      console.error(err);
+      toast.error('Ocorreu um erro ao atualizar');
+    } finally {
+      setIsSavingRole(false);
+    }
   };
 
   const handleRevokeAccess = async (userId: string) => {
@@ -390,14 +431,13 @@ export default function Configuracoes() {
         {/* Tab: Usuários */}
         <TabsContent value="usuarios" className="space-y-4">
           <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Usuários com Acesso</CardTitle>
-                  <CardDescription>
-                    Gerencie quem tem acesso ao painel administrativo
-                  </CardDescription>
-                </div>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <div className="space-y-1">
+                <CardTitle>Usuários com Acesso (Editável)</CardTitle>
+                <CardDescription>
+                  Gerencie quem tem acesso ao painel administrativo
+                </CardDescription>
+              </div>
                 {isAdmin && (
                   <Dialog open={isInviteDialogOpen} onOpenChange={(open) => {
                     if (!open) handleCloseInviteDialog();
@@ -510,7 +550,80 @@ export default function Configuracoes() {
                     </DialogContent>
                   </Dialog>
                 )}
-              </div>
+                {isAdmin && (
+                  <Dialog open={isEditDialogOpen} onOpenChange={(open) => {
+                    if (!open) setIsEditDialogOpen(false);
+                    else setIsEditDialogOpen(true);
+                  }}>
+                    <DialogContent className="bg-background sm:max-w-md">
+                      <DialogHeader>
+                        <DialogTitle>Editar Permissões</DialogTitle>
+                        <DialogDescription>
+                          Altere o nível de acesso e os bots permitidos para o usuário.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4 py-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="edit-role">Permissão</Label>
+                            <Select value={editRole} onValueChange={(v) => setEditRole(v as AppRole)}>
+                              <SelectTrigger className="bg-background">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent className="bg-background">
+                                <SelectItem value="admin">Administrador</SelectItem>
+                                <SelectItem value="supervisor">Supervisor</SelectItem>
+                                <SelectItem value="atendente">Atendente</SelectItem>
+                                <SelectItem value="visualizador">Visualizador</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          
+                          {editRole !== 'admin' && (
+                            <div className="space-y-2">
+                              <Label>Acesso aos Bots</Label>
+                              <div className="space-y-2 p-3 border rounded-lg max-h-[200px] overflow-y-auto">
+                                {bots.map(bot => (
+                                  <div key={bot.id} className="flex items-center space-x-2">
+                                    <Checkbox 
+                                      id={`edit-bot-${bot.id}`}
+                                      checked={editSelectedBotIds.includes(bot.id)}
+                                      onCheckedChange={() => {
+                                        setEditSelectedBotIds(prev => 
+                                          prev.includes(bot.id) 
+                                            ? prev.filter(id => id !== bot.id)
+                                            : [...prev, bot.id]
+                                        )
+                                      }}
+                                    />
+                                    <label 
+                                      htmlFor={`edit-bot-${bot.id}`}
+                                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                                    >
+                                      {bot.name}
+                                    </label>
+                                  </div>
+                                ))}
+                                {bots.length === 0 && (
+                                  <p className="text-sm text-muted-foreground">
+                                    Nenhum bot disponível
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                          Cancelar
+                        </Button>
+                        <Button onClick={handleSavePermissions} disabled={isSavingRole}>
+                          {isSavingRole && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                          Salvar
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                )}
             </CardHeader>
             <CardContent>
               <div className="mb-4">
@@ -588,37 +701,23 @@ export default function Configuracoes() {
                                       </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end" className="bg-background">
-                                      {primaryRole && primaryRole !== 'admin' && (
-                                        <DropdownMenuItem 
-                                          onClick={() => handleUpdateRole(userItem.id, primaryRole, 'admin')}
-                                        >
-                                          Promover a Admin
-                                        </DropdownMenuItem>
-                                      )}
-                                      {primaryRole === 'admin' && (
-                                        <DropdownMenuItem 
-                                          onClick={() => handleUpdateRole(userItem.id, 'admin', 'atendente')}
-                                        >
-                                          Rebaixar a Atendente
-                                        </DropdownMenuItem>
-                                      )}
-                                      <DropdownMenuSeparator />
-                                      {hasAccess ? (
-                                        <DropdownMenuItem 
-                                          className="text-destructive"
-                                          onClick={() => handleRevokeAccess(userItem.id)}
-                                        >
-                                          <XCircle className="w-4 h-4 mr-2" />
-                                          Revogar Acesso
-                                        </DropdownMenuItem>
-                                      ) : (
-                                        <DropdownMenuItem 
-                                          className="text-online"
-                                          onClick={() => handleUpdateRole(userItem.id, 'visualizador', 'atendente')}
-                                        >
-                                          <CheckCircle className="w-4 h-4 mr-2" />
-                                          Conceder Acesso
-                                        </DropdownMenuItem>
+                                      <DropdownMenuItem 
+                                        onClick={() => handleOpenEditDialog(userItem)}
+                                      >
+                                        {hasAccess ? 'Editar Permissões' : 'Conceder Acesso'}
+                                      </DropdownMenuItem>
+                                      
+                                      {hasAccess && (
+                                        <>
+                                          <DropdownMenuSeparator />
+                                          <DropdownMenuItem 
+                                            className="text-destructive"
+                                            onClick={() => handleRevokeAccess(userItem.id)}
+                                          >
+                                            <XCircle className="w-4 h-4 mr-2" />
+                                            Revogar Acesso
+                                          </DropdownMenuItem>
+                                        </>
                                       )}
                                     </DropdownMenuContent>
                                   </DropdownMenu>

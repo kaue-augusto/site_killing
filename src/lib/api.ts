@@ -31,7 +31,7 @@ export interface Message {
   id: string;
   conversationId: string;
   content: string;
-  type: 'text' | 'image' | 'audio' | 'document';
+  type: 'text' | 'image' | 'audio' | 'document' | 'file' | 'pdf';
   sender: 'user' | 'agent' | 'bot' | 'human';
   timestamp: Date;
   status: 'sent' | 'delivered' | 'read';
@@ -179,15 +179,15 @@ export async function fetchMessages(conversationId: string): Promise<Message[]> 
 
   console.log(`✅ Mensagens encontradas para o chat ${conversationId}:`, data);
 
-  return data.map((msg) => ({
+  return (data as any[]).map((msg) => ({
     id: msg.id,
     conversationId: msg.chat_id || '',
     content: msg.content || '',
-    type: msg.message_type || msg.type || 'text',
+    type: (msg.message_type === 'ptt' ? 'audio' : (msg.message_type || msg.type || 'text')) as Message['type'],
     sender: msg.sender_type as Message['sender'],
     timestamp: msg.created_at ? new Date(msg.created_at) : new Date(),
     status: 'read',
-    attachmentUrl: msg.media_url || msg.attachment_url || msg.file_url || (msg.message_type && msg.message_type !== 'text' && msg.content && msg.content.startsWith('http') ? msg.content : undefined)
+    attachmentUrl: msg.media_url || msg.attachment_url || msg.file_url || msg.url || msg.link || msg.mediaUrl || msg.fileUrl || msg.audioUrl || msg.audio_url || (msg.message_type && msg.message_type !== 'text' && msg.content && msg.content.startsWith('http') ? msg.content : undefined)
   }));
 }
 

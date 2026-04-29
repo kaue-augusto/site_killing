@@ -92,7 +92,7 @@ export function BotProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     fetchBots();
-  }, [user?.id]);
+  }, [user?.id, isAdmin]);
 
   return (
     <BotContext.Provider
