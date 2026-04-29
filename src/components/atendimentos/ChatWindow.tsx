@@ -74,8 +74,8 @@ export function ChatWindow({
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-background">
-      <div className="h-16 border-b border-border px-4 flex items-center justify-between bg-card">
+    <div className="flex-1 flex flex-col bg-background w-full min-w-0">
+      <div className="h-16 border-b border-border px-4 flex items-center justify-between bg-card shrink-0">
         <div className="flex items-center gap-3">
           {onBack && (
             <Button variant="ghost" size="icon" onClick={onBack} className="md:hidden shrink-0 -ml-2">
@@ -100,7 +100,7 @@ export function ChatWindow({
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-3">
         {isLoading ? (
           <div className="space-y-3">
             {[1, 2, 3].map((i) => (
@@ -182,25 +182,26 @@ export function ChatWindow({
       </div>
 
       {/* Composer */}
-      <div className="border-t border-border p-3 bg-card">
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" className="text-muted-foreground">
+      <div className="p-4 border-t border-border bg-card shrink-0">
+        <div className="flex items-end gap-1 md:gap-2">
+          <Button variant="ghost" size="icon" className="shrink-0 text-muted-foreground hover:text-foreground">
             <Paperclip className="w-5 h-5" />
           </Button>
-          <Button variant="ghost" size="icon" className="text-muted-foreground">
+          <Button variant="ghost" size="icon" className="shrink-0 hidden sm:flex text-muted-foreground hover:text-foreground">
             <Image className="w-5 h-5" />
           </Button>
-          <Button variant="ghost" size="icon" className="text-muted-foreground">
+          <Button variant="ghost" size="icon" className="shrink-0 hidden sm:flex text-muted-foreground hover:text-foreground">
             <File className="w-5 h-5" />
           </Button>
-
-          <Input
-            placeholder="Digite uma mensagem..."
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyPress={handleKeyPress}
-            className="flex-1 bg-secondary border-border"
-          />
+          <div className="flex-1 min-w-0 bg-secondary rounded-xl min-h-[44px] flex items-center px-4">
+            <Input
+              placeholder="Digite uma mensagem..."
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyPress={handleKeyPress}
+              className="flex-1 bg-transparent border-none focus-visible:ring-0 px-0"
+            />
+          </div>
 
           {inputValue.trim() ? (
             <Button size="icon" onClick={handleSend}>

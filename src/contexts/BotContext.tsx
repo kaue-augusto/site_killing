@@ -17,7 +17,7 @@ interface BotContextType {
 const BotContext = createContext<BotContextType | undefined>(undefined);
 
 export function BotProvider({ children }: { children: ReactNode }) {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [bots, setBots] = useState<Bot[]>([]);
   const [selectedBot, setSelectedBot] = useState<Bot | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -33,8 +33,14 @@ export function BotProvider({ children }: { children: ReactNode }) {
     setIsLoading(true);
     try {
       // 1. Busca os bots e a preferência de seleção em paralelo
+      let botsQuery = supabase.from('bots').select('*').eq('is_active', true).order('name');
+      
+      if (!isAdmin) {
+        botsQuery = botsQuery.eq('user_id', user.id);
+      }
+
       const [botsRes, profileRes] = await Promise.all([
-        supabase.from('bots').select('*').eq('user_id', user.id).eq('is_active', true).order('name'),
+        botsQuery,
         supabase.from('profiles').select('selected_bot_id').eq('id', user.id).maybeSingle()
       ]);
 

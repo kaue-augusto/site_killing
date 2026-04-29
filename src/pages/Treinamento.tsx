@@ -36,7 +36,7 @@ const defaultInstructions = {
 export default function Treinamento() {
   const { selectedBot, refreshBots } = useBot();
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
 
   // Training state Estados de Configuração do Bot
   const [selectedMode, setSelectedMode] = useState('suporte');
@@ -388,7 +388,8 @@ export default function Treinamento() {
         instructions: instructions, // Salva o texto completo com a injeção do nome
         mode: selectedMode,
         user_id: user.id,
-        exigir_matricula: authorizationEnabled
+        exigir_matricula: authorizationEnabled,
+        isAdmin: isAdmin
       });
 
       await refreshBots();

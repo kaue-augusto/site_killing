@@ -154,10 +154,11 @@ export async function fetchConversations(botSlug: string): Promise<Conversation[
       contactPhone: chat.contact_phone || '',
       lastMessage: latest ? (latest.content || 'Anexo') : 'Abrir conversa', 
       lastMessageTime: latest ? new Date(latest.created_at) : (chat.last_message_at ? new Date(chat.last_message_at) : new Date(chat.created_at || Date.now())),
-      unreadCount: 0,
+      unreadCount: chat.status === 'pending' ? 1 : 0,
       status: (chat.status as Conversation['status']) || 'open',
       assignedTo: chat.assigned_to || undefined,
       botId: botSlug,
+
     };
   });
 }
@@ -528,9 +529,9 @@ export async function generateWhatsAppQR(instanceId: string, token: string): Pro
 
 export async function saveBotTraining(
   botSlug: string,
-  config: { instructions: string, user_id: string; name?: string; mode?: string; exigir_matricula?: boolean }
+  config: { instructions: string, user_id: string; name?: string; mode?: string; exigir_matricula?: boolean, isAdmin?: boolean }
 ): Promise<void> {
-  const { data, error } = await supabase
+  let query = supabase
     .from('bots')
     .update({ 
       instructions: config.instructions, 
@@ -538,9 +539,13 @@ export async function saveBotTraining(
       bot_mode: config.mode,
       exigir_matricula: config.exigir_matricula 
     })
-    .eq('slug', botSlug)
-    .eq('user_id', config.user_id)
-    .select();
+    .eq('slug', botSlug);
+
+  if (!config.isAdmin) {
+    query = query.eq('user_id', config.user_id);
+  }
+
+  const { data, error } = await query.select();
 
   if (error) throw error;
   if (!data || data.length === 0) throw new Error("Não foi possível encontrar o bot para atualizar");

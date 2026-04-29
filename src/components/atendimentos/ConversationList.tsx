@@ -54,9 +54,23 @@ export function ConversationList({
     };
   }, [isResizing]);
 
-  const filters: { key: FilterType; label: string }[] = [
+  const pendingCount = conversations.filter(c => c.status === 'pending').length;
+
+  const filters: { key: FilterType; label: React.ReactNode }[] = [
     { key: 'all', label: 'Todas' },
-    { key: 'pending', label: 'Aguardando' },
+    { 
+      key: 'pending', 
+      label: (
+        <span className="flex items-center gap-1.5">
+          Aguardando
+          {pendingCount > 0 && (
+            <span className="bg-yellow-500 text-white text-[10px] px-1.5 py-0.5 rounded-full leading-none">
+              {pendingCount}
+            </span>
+          )}
+        </span>
+      ) 
+    },
     { key: 'mine', label: 'Minhas' },
     { key: 'unassigned', label: 'Não atribuídas' },
     { key: 'closed', label: 'Encerradas' },
@@ -187,7 +201,7 @@ export function ConversationList({
                   </span>
                 </div>
                 <div className="flex items-center justify-between gap-2 mt-1">
-                  <p className="text-sm text-muted-foreground truncate">
+                  <p className={`text-sm truncate ${conv.unreadCount > 0 ? 'font-semibold text-foreground' : 'text-muted-foreground'}`}>
                     {conv.lastMessage}
                   </p>
                   {conv.unreadCount > 0 && (
