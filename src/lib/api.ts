@@ -127,17 +127,39 @@ export async function fetchConversations(botSlug: string): Promise<Conversation[
 
   console.log("✅ 4. Chats retornados do banco:", data);
 
-  return data.map((chat) => ({
-    id: chat.id,
-    contactName: chat.contact_name || 'Cliente',
-    contactPhone: chat.contact_phone || '',
-    lastMessage: 'Abrir conversa', 
-    lastMessageTime: chat.created_at ? new Date(chat.created_at) : new Date(),
-    unreadCount: 0,
-    status: (chat.status as Conversation['status']) || 'open',
-    assignedTo: chat.assigned_to || undefined,
-    botId: botSlug,
-  }));
+  const chatIds = data.map(c => c.id);
+  let chatLatestMsg: Record<string, any> = {};
+  
+  if (chatIds.length > 0) {
+    const { data: latestMsgs } = await supabase
+      .from('messages')
+      .select('chat_id, content, created_at')
+      .in('chat_id', chatIds)
+      .order('created_at', { ascending: false });
+      
+    if (latestMsgs) {
+      latestMsgs.forEach(msg => {
+        if (!chatLatestMsg[msg.chat_id]) {
+          chatLatestMsg[msg.chat_id] = msg;
+        }
+      });
+    }
+  }
+
+  return data.map((chat) => {
+    const latest = chatLatestMsg[chat.id];
+    return {
+      id: chat.id,
+      contactName: chat.contact_name || 'Cliente',
+      contactPhone: chat.contact_phone || '',
+      lastMessage: latest ? (latest.content || 'Anexo') : 'Abrir conversa', 
+      lastMessageTime: latest ? new Date(latest.created_at) : (chat.last_message_at ? new Date(chat.last_message_at) : new Date(chat.created_at || Date.now())),
+      unreadCount: 0,
+      status: (chat.status as Conversation['status']) || 'open',
+      assignedTo: chat.assigned_to || undefined,
+      botId: botSlug,
+    };
+  });
 }
 
 export async function fetchMessages(conversationId: string): Promise<Message[]> {
@@ -160,10 +182,11 @@ export async function fetchMessages(conversationId: string): Promise<Message[]> 
     id: msg.id,
     conversationId: msg.chat_id || '',
     content: msg.content || '',
-    type: 'text',
+    type: msg.message_type || msg.type || 'text',
     sender: msg.sender_type as Message['sender'],
     timestamp: msg.created_at ? new Date(msg.created_at) : new Date(),
     status: 'read',
+    attachmentUrl: msg.media_url || msg.attachment_url || msg.file_url || (msg.message_type && msg.message_type !== 'text' && msg.content && msg.content.startsWith('http') ? msg.content : undefined)
   }));
 }
 

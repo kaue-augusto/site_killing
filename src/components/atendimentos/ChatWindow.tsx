@@ -3,7 +3,7 @@ import { Send, Paperclip, Mic, Image, File, Check, CheckCheck } from 'lucide-rea
 import { Message, Conversation } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { format } from 'date-fns';
+import { format, isSameDay, isToday, isYesterday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 interface ChatWindowProps {
@@ -100,30 +100,68 @@ export function ChatWindow({
             ))}
           </div>
         ) : (
-          messages.map((msg) => (
-            <div
-              key={msg.id}
-              className={`flex ${msg.sender === 'agent' || msg.sender === 'human' ? 'justify-end' : 'justify-start'} animate-fade-in`}
-            >
-              <div
-                className={`max-w-[70%] px-4 py-2 ${
-                  msg.sender === 'agent' || msg.sender === 'human'
-                    ? 'chat-bubble-sent'
-                    : msg.sender === 'bot'
-                    ? 'bg-muted text-foreground rounded-2xl rounded-bl-sm'
-                    : 'chat-bubble-received'
-                }`}
-              >
-                <p className="text-sm">{msg.content}</p>
-                <div className="flex items-center justify-end gap-1 mt-1">
-                  <span className="text-[10px] text-chat-timestamp">
-                    {format(msg.timestamp, 'HH:mm', { locale: ptBR })}
-                  </span>
-                  {(msg.sender === 'agent' || msg.sender === 'human') && getStatusIcon(msg.status)}
+          messages.map((msg, index) => {
+            const previousMsg = index > 0 ? messages[index - 1] : null;
+            const showDateSeparator = !previousMsg || !isSameDay(msg.timestamp, previousMsg.timestamp);
+            
+            let dateSeparatorText = '';
+            if (showDateSeparator) {
+              if (isToday(msg.timestamp)) {
+                dateSeparatorText = 'Hoje';
+              } else if (isYesterday(msg.timestamp)) {
+                dateSeparatorText = 'Ontem';
+              } else {
+                dateSeparatorText = format(msg.timestamp, "d 'de' MMMM", { locale: ptBR });
+              }
+            }
+
+            return (
+              <div key={msg.id} className="flex flex-col">
+                {showDateSeparator && (
+                  <div className="flex justify-center my-4">
+                    <span className="text-xs font-medium bg-muted/50 text-muted-foreground px-3 py-1 rounded-full shadow-sm">
+                      {dateSeparatorText}
+                    </span>
+                  </div>
+                )}
+                <div
+                  className={`flex ${msg.sender === 'agent' || msg.sender === 'human' ? 'justify-end' : 'justify-start'} animate-fade-in mb-3`}
+                >
+                  <div
+                    className={`max-w-[70%] px-4 py-2 ${
+                      msg.sender === 'agent' || msg.sender === 'human'
+                        ? 'chat-bubble-sent'
+                        : msg.sender === 'bot'
+                        ? 'bg-muted text-foreground rounded-2xl rounded-bl-sm'
+                        : 'chat-bubble-received'
+                    }`}
+                  >
+                    {msg.type === 'image' && (
+                      <img src={msg.attachmentUrl || msg.content} alt="Imagem" className="max-w-full rounded-lg mb-1" />
+                    )}
+                    {msg.type === 'audio' && (
+                      <audio controls src={msg.attachmentUrl || msg.content} className="max-w-full mb-1" />
+                    )}
+                    {(msg.type === 'document' || msg.type === 'file' || msg.type === 'pdf') && (
+                      <a href={msg.attachmentUrl || msg.content} target="_blank" rel="noreferrer" className="flex items-center gap-2 underline mb-1 font-semibold">
+                        <File className="w-4 h-4" /> Documento Anexado
+                      </a>
+                    )}
+                    {msg.type === 'text' && <p className="text-sm break-words whitespace-pre-wrap">{msg.content}</p>}
+                    {!['image', 'audio', 'document', 'file', 'pdf', 'text'].includes(msg.type) && (
+                       <p className="text-sm break-words whitespace-pre-wrap">{msg.content}</p>
+                    )}
+                    <div className="flex items-center justify-end gap-1 mt-1">
+                      <span className="text-[10px] text-chat-timestamp">
+                        {format(msg.timestamp, 'HH:mm', { locale: ptBR })}
+                      </span>
+                      {(msg.sender === 'agent' || msg.sender === 'human') && getStatusIcon(msg.status)}
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
         <div ref={messagesEndRef} />
       </div>

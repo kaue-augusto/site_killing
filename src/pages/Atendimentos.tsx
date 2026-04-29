@@ -99,10 +99,11 @@ export default function Atendimentos() {
             id: rawMsg.id,
             conversationId: rawMsg.chat_id,
             content: rawMsg.content || '',
-            type: 'text',
+            type: rawMsg.message_type || rawMsg.type || 'text',
             sender: rawMsg.sender_type as Message['sender'],
             timestamp: new Date(rawMsg.created_at),
-            status: 'read'
+            status: 'read',
+            attachmentUrl: rawMsg.media_url || rawMsg.attachment_url || rawMsg.file_url || (rawMsg.message_type && rawMsg.message_type !== 'text' && rawMsg.content && rawMsg.content.startsWith('http') ? rawMsg.content : undefined)
           };
 
           // Adiciona a mensagem nova na tela se ela já não estiver lá

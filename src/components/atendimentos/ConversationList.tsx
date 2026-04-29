@@ -2,8 +2,18 @@ import { useState, useEffect } from 'react';
 import { Search, Filter } from 'lucide-react';
 import { Conversation } from '@/lib/api';
 import { Input } from '@/components/ui/input';
-import { formatDistanceToNow } from 'date-fns';
+import { isToday, isYesterday, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+
+function formatWhatsAppDate(date: Date) {
+  if (isToday(date)) {
+    return format(date, 'HH:mm');
+  }
+  if (isYesterday(date)) {
+    return 'Ontem';
+  }
+  return format(date, 'dd/MM/yyyy');
+}
 
 interface ConversationListProps {
   conversations: Conversation[];
@@ -171,10 +181,7 @@ export function ConversationList({
                     )}
                   </span>
                   <span className="text-xs text-muted-foreground shrink-0">
-                    {formatDistanceToNow(conv.lastMessageTime, {
-                      locale: ptBR,
-                      addSuffix: false,
-                    })}
+                    {formatWhatsAppDate(conv.lastMessageTime)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between gap-2 mt-1">
