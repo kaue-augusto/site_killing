@@ -58,8 +58,9 @@ export function TopBar() {
   }
 
   return (
-    <header className="h-14 border-b border-border bg-card flex items-center justify-between px-6">
-      <div className="flex items-center gap-4">
+    <header className="h-14 border-b border-border bg-card flex items-center justify-between px-4 md:px-6 shrink-0">
+      <div className="flex items-center gap-2 md:gap-4">
+        <SidebarTrigger className="md:hidden" />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" className="gap-2 bg-secondary border-border">

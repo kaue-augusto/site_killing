@@ -20,6 +20,7 @@ interface ConversationListProps {
   selectedId?: string;
   onSelect: (conversation: Conversation) => void;
   isLoading?: boolean;
+  className?: string;
 }
 
 type FilterType = 'all' | 'pending' | 'mine' | 'unassigned' | 'closed';
@@ -29,6 +30,7 @@ export function ConversationList({
   selectedId,
   onSelect,
   isLoading,
+  className,
 }: ConversationListProps) {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterType>('all');
@@ -92,8 +94,8 @@ export function ConversationList({
 
   return (
     <div 
-      className="border-r border-border flex flex-col bg-card relative shrink-0"
-      style={{ width: `${width}px` }}
+      className={`border-r border-border flex flex-col bg-card relative shrink-0 w-full md:w-[var(--list-width)] ${className || ''}`}
+      style={{ '--list-width': `${width}px` } as React.CSSProperties}
     >
       {/* Resizer Handle */}
       <div 

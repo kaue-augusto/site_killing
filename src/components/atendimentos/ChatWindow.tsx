@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Paperclip, Mic, Image, File, Check, CheckCheck } from 'lucide-react';
+import { Send, Paperclip, Mic, Image, File, Check, CheckCheck, ChevronLeft, MoreVertical } from 'lucide-react';
 import { Message, Conversation } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +11,8 @@ interface ChatWindowProps {
   messages: Message[];
   onSendMessage: (content: string, type: Message['type']) => void;
   isLoading?: boolean;
+  onBack?: () => void;
+  onOpenContact?: () => void;
 }
 
 export function ChatWindow({
@@ -18,6 +20,8 @@ export function ChatWindow({
   messages,
   onSendMessage,
   isLoading,
+  onBack,
+  onOpenContact,
 }: ChatWindowProps) {
   const [inputValue, setInputValue] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -71,17 +75,28 @@ export function ChatWindow({
 
   return (
     <div className="flex-1 flex flex-col bg-background">
-      {/* Header */}
-      <div className="h-16 border-b border-border px-4 flex items-center gap-3 bg-card">
-        <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
-          <span className="text-lg font-semibold text-muted-foreground">
-            {conversation.contactName.charAt(0).toUpperCase()}
-          </span>
+      <div className="h-16 border-b border-border px-4 flex items-center justify-between bg-card">
+        <div className="flex items-center gap-3">
+          {onBack && (
+            <Button variant="ghost" size="icon" onClick={onBack} className="md:hidden shrink-0 -ml-2">
+              <ChevronLeft className="w-5 h-5" />
+            </Button>
+          )}
+          <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center shrink-0">
+            <span className="text-lg font-semibold text-muted-foreground">
+              {conversation.contactName.charAt(0).toUpperCase()}
+            </span>
+          </div>
+          <div className="min-w-0">
+            <h2 className="font-medium text-foreground truncate">{conversation.contactName}</h2>
+            <p className="text-sm text-muted-foreground truncate">{conversation.contactPhone}</p>
+          </div>
         </div>
-        <div>
-          <h2 className="font-medium text-foreground">{conversation.contactName}</h2>
-          <p className="text-sm text-muted-foreground">{conversation.contactPhone}</p>
-        </div>
+        {onOpenContact && (
+          <Button variant="ghost" size="icon" onClick={onOpenContact} className="lg:hidden shrink-0 -mr-2">
+            <MoreVertical className="w-5 h-5" />
+          </Button>
+        )}
       </div>
 
       {/* Messages */}

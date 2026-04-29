@@ -49,7 +49,7 @@ export function ContactPanel({ conversation, messages = [], onClose, onTakeover,
 
   return (
     <>
-      <div className="w-80 border-l border-border bg-card flex flex-col">
+      <div className="h-full w-full lg:w-80 border-l border-border bg-card flex flex-col">
         {/* Header */}
         <div className="p-4 border-b border-border flex items-center justify-between">
           <h3 className="font-semibold text-foreground">Informações do Contato</h3>

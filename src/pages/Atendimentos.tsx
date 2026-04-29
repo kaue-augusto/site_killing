@@ -18,6 +18,7 @@ import { ConversationList } from '@/components/atendimentos/ConversationList';
 import { ChatWindow } from '@/components/atendimentos/ChatWindow';
 import { ContactPanel } from '@/components/atendimentos/ContactPanel';
 import { toast } from '@/hooks/use-toast';
+import { Sheet, SheetContent } from '@/components/ui/sheet';
 
 export default function Atendimentos() {
   const { selectedBot } = useBot();
@@ -26,6 +27,7 @@ export default function Atendimentos() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoadingConversations, setIsLoadingConversations] = useState(true);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [isContactPanelOpen, setIsContactPanelOpen] = useState(false);
 
   // Fetch conversations when bot changes
   useEffect(() => {
@@ -313,31 +315,55 @@ export default function Atendimentos() {
   };
 
   return (
-    <div className="h-full flex">
+    <div className="h-full flex overflow-hidden">
       <ConversationList
+        className={selectedConversation ? 'hidden md:flex' : 'flex'}
         conversations={conversations}
         selectedId={selectedConversation?.id}
         onSelect={handleSelectConversation}
         isLoading={isLoadingConversations}
       />
 
-      <ChatWindow
-        conversation={selectedConversation}
-        messages={messages}
-        onSendMessage={handleSendMessage}
-        isLoading={isLoadingMessages}
-      />
+      {selectedConversation && (
+        <div className={`h-full flex-1 flex min-w-0 ${!selectedConversation ? 'hidden md:flex' : 'flex'}`}>
+          <ChatWindow
+            conversation={selectedConversation}
+            messages={messages}
+            onSendMessage={handleSendMessage}
+            isLoading={isLoadingMessages}
+            onBack={() => setSelectedConversation(null)}
+            onOpenContact={() => setIsContactPanelOpen(true)}
+          />
 
-      <ContactPanel
-        conversation={selectedConversation}
-        messages={messages}
-        onClose={handleCloseConversation}
-        onTakeover={handleTakeoverConversation}
-        onReturnToBot={handleReturnToBot}
-        onDelete={handleDeleteConversation}
-        onBlock={handleBlockContact}
-        onReport={handleReportContact}
-      />
+          <div className="hidden lg:block h-full shrink-0">
+            <ContactPanel
+              conversation={selectedConversation}
+              messages={messages}
+              onClose={handleCloseConversation}
+              onTakeover={handleTakeoverConversation}
+              onReturnToBot={handleReturnToBot}
+              onDelete={handleDeleteConversation}
+              onBlock={handleBlockContact}
+              onReport={handleReportContact}
+            />
+          </div>
+
+          <Sheet open={isContactPanelOpen} onOpenChange={setIsContactPanelOpen}>
+            <SheetContent side="right" className="p-0 w-80 sm:w-96 border-none">
+              <ContactPanel
+                conversation={selectedConversation}
+                messages={messages}
+                onClose={() => { setIsContactPanelOpen(false); handleCloseConversation(); }}
+                onTakeover={handleTakeoverConversation}
+                onReturnToBot={handleReturnToBot}
+                onDelete={() => { setIsContactPanelOpen(false); handleDeleteConversation(); }}
+                onBlock={() => { setIsContactPanelOpen(false); handleBlockContact(); }}
+                onReport={(reason) => { setIsContactPanelOpen(false); handleReportContact(reason); }}
+              />
+            </SheetContent>
+          </Sheet>
+        </div>
+      )}
     </div>
   );
 }
