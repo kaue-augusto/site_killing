@@ -99,34 +99,34 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SEC-01 | Phase 1 | Pending |
-| SEC-02 | Phase 1 | Pending |
-| SEC-03 | Phase 1 | Pending |
-| INFRA-01 | Phase 1 | Pending |
-| INFRA-02 | Phase 2 | Pending |
-| INFRA-03 | Phase 2 | Pending |
-| N8N-01 | Phase 3 | Pending |
-| N8N-02 | Phase 3 | Pending |
-| N8N-03 | Phase 3 | Pending |
-| N8N-04 | Phase 3 | Pending |
-| GCP-01 | Phase 3 | Pending |
-| GCP-02 | Phase 3 | Pending |
-| GCP-03 | Phase 3 | Pending |
-| MON-01 | Phase 3 | Pending |
-| MON-02 | Phase 3 | Pending |
-| MON-03 | Phase 3 | Pending |
-| BUG-01 | Phase 2 | Pending |
-| BUG-02 | Phase 2 | Pending |
-| BUG-03 | Phase 2 | Pending |
-| BUG-04 | Phase 2 | Pending |
-| IMG-01 | Phase 4 | Pending |
-| IMG-02 | Phase 4 | Pending |
-| IMG-03 | Phase 4 | Pending |
-| TTS-01 | Phase 4 | Pending |
-| TTS-02 | Phase 4 | Pending |
-| TTS-03 | Phase 4 | Pending |
-| TTS-04 | Phase 4 | Pending |
-| TTS-05 | Phase 4 | Pending |
+| SEC-01 | Phase 1 — Foundation Hardening | Pending |
+| SEC-02 | Phase 1 — Foundation Hardening | Pending |
+| SEC-03 | Phase 1 — Foundation Hardening | Pending |
+| INFRA-01 | Phase 1 — Foundation Hardening | Pending |
+| INFRA-02 | Phase 2 — React & Supabase Stabilization | Pending |
+| INFRA-03 | Phase 2 — React & Supabase Stabilization | Pending |
+| BUG-01 | Phase 2 — React & Supabase Stabilization | Pending |
+| BUG-02 | Phase 2 — React & Supabase Stabilization | Pending |
+| BUG-03 | Phase 2 — React & Supabase Stabilization | Pending |
+| BUG-04 | Phase 2 — React & Supabase Stabilization | Pending |
+| N8N-01 | Phase 3 — n8n Scale Infrastructure | Pending |
+| N8N-02 | Phase 3 — n8n Scale Infrastructure | Pending |
+| N8N-03 | Phase 3 — n8n Scale Infrastructure | Pending |
+| N8N-04 | Phase 3 — n8n Scale Infrastructure | Pending |
+| GCP-01 | Phase 3 — n8n Scale Infrastructure | Pending |
+| GCP-02 | Phase 3 — n8n Scale Infrastructure | Pending |
+| GCP-03 | Phase 3 — n8n Scale Infrastructure | Pending |
+| MON-01 | Phase 3 — n8n Scale Infrastructure | Pending |
+| MON-02 | Phase 3 — n8n Scale Infrastructure | Pending |
+| MON-03 | Phase 3 — n8n Scale Infrastructure | Pending |
+| IMG-01 | Phase 4 — AI Capabilities — Image & TTS | Pending |
+| IMG-02 | Phase 4 — AI Capabilities — Image & TTS | Pending |
+| IMG-03 | Phase 4 — AI Capabilities — Image & TTS | Pending |
+| TTS-01 | Phase 4 — AI Capabilities — Image & TTS | Pending |
+| TTS-02 | Phase 4 — AI Capabilities — Image & TTS | Pending |
+| TTS-03 | Phase 4 — AI Capabilities — Image & TTS | Pending |
+| TTS-04 | Phase 4 — AI Capabilities — Image & TTS | Pending |
+| TTS-05 | Phase 4 — AI Capabilities — Image & TTS | Pending |
 
 **Coverage:**
 - v1 requirements: 28 total
@@ -135,4 +135,4 @@
 
 ---
 *Requirements defined: 2026-04-30*
-*Last updated: 2026-04-30 after initial definition*
+*Last updated: 2026-04-29 after roadmap creation (phase names added to traceability)*
