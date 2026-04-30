@@ -32,7 +32,7 @@ export interface Message {
   conversationId: string;
   content: string;
   type: 'text' | 'image' | 'audio' | 'document' | 'file' | 'pdf';
-  sender: 'user' | 'agent' | 'bot' | 'human';
+  sender: 'user' | 'agent' | 'bot' | 'human' | 'contact';
   timestamp: Date;
   status: 'sent' | 'delivered' | 'read';
   attachmentUrl?: string;
@@ -158,7 +158,7 @@ export async function fetchConversations(botSlug: string): Promise<Conversation[
       status: (chat.status as Conversation['status']) || 'open',
       assignedTo: chat.assigned_to || undefined,
       botId: botSlug,
-
+      avatarUrl: (chat as any).contact_avatar || (chat as any).avatar_url || undefined,
     };
   });
 }
@@ -179,22 +179,25 @@ export async function fetchMessages(conversationId: string): Promise<Message[]> 
 
   console.log(`✅ Mensagens encontradas para o chat ${conversationId}:`, data);
 
-  return (data as any[]).map((msg) => ({
-    id: msg.id,
-    conversationId: msg.chat_id || '',
-    content: msg.content || '',
-    type: (msg.message_type === 'ptt' ? 'audio' : (msg.message_type || msg.type || 'text')) as Message['type'],
-    sender: msg.sender_type as Message['sender'],
-    timestamp: msg.created_at ? new Date(msg.created_at) : new Date(),
-    status: 'read',
-    attachmentUrl: msg.media_url || msg.attachment_url || msg.file_url || msg.url || msg.link || msg.mediaUrl || msg.fileUrl || msg.audioUrl || msg.audio_url || (msg.message_type && msg.message_type !== 'text' && msg.content && msg.content.startsWith('http') ? msg.content : undefined)
-  }));
+  return (data as any[])
+    .map((msg): Message => ({
+      id: msg.id,
+      conversationId: msg.chat_id || '',
+      content: msg.content || '',
+      type: (msg.message_type === 'ptt' ? 'audio' : (msg.message_type || msg.type || 'text')) as Message['type'],
+      sender: msg.sender_type as Message['sender'],
+      timestamp: msg.created_at ? new Date(msg.created_at) : new Date(),
+      status: 'read' as Message['status'],
+      attachmentUrl: msg.media_url || msg.attachment_url || msg.file_url || msg.url || msg.link || msg.mediaUrl || msg.fileUrl || msg.audioUrl || msg.audio_url || (msg.message_type && msg.message_type !== 'text' && msg.content && msg.content.startsWith('http') ? msg.content : undefined)
+    }))
+    .filter(msg => msg.content !== 'Robô pausado');
 }
 
 export async function sendMessage(payload: {
   conversationId: string;
   content: string;
   type: Message['type'];
+  attachmentUrl?: string;
 }): Promise<Message> {
   
   // 1. Inserir no banco de dados (Para aparecer no painel)
@@ -203,7 +206,9 @@ export async function sendMessage(payload: {
     .insert({
       chat_id: payload.conversationId,
       content: payload.content,
-      sender_type: 'human'
+      sender_type: 'human',
+      message_type: payload.type === 'image' ? 'image' : (payload.type === 'audio' ? 'audio' : (payload.type === 'text' ? 'text' : 'document')),
+      media_url: payload.type === 'text' ? payload.attachmentUrl : null // Não salva Base64 no banco
     })
     .select()
     .single();
@@ -214,38 +219,64 @@ export async function sendMessage(payload: {
   }
 
   // 2. Enviar a mensagem de verdade para o WhatsApp via Z-API
-  if (payload.type === 'text') {
-    // Buscar qual é o telefone do usuário e qual é o bot
-    const { data: chatData } = await supabase
-      .from('chats')
-      .select('contact_phone, bot_id')
-      .eq('id', payload.conversationId)
+  // Buscar qual é o telefone do usuário e qual é o bot
+  const { data: chatData } = await supabase
+    .from('chats')
+    .select('contact_phone, bot_id')
+    .eq('id', payload.conversationId)
+    .single();
+
+  if (chatData) {
+    // Buscar token e as credenciais da Z-API do robô atual
+    const { data: botData } = await supabase
+      .from('bots')
+      .select('zapi_instance, zap_token')
+      .eq('id', chatData.bot_id)
       .single();
 
-    if (chatData) {
-      // Buscar token e as credenciais da Z-API do robô atual
-      const { data: botData } = await supabase
-        .from('bots')
-        .select('zapi_instance, zap_token')
-        .eq('id', chatData.bot_id)
-        .single();
+    if (botData && botData.zapi_instance && botData.zap_token) {
+      try {
+        let endpoint = 'send-text';
+        let body: any = {
+          phone: chatData.contact_phone
+        };
 
-      if (botData && botData.zapi_instance && botData.zap_token) {
-        try {
-          await fetch(`https://api.z-api.io/instances/${botData.zapi_instance}/token/${botData.zap_token}/send-text`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Client-Token': 'F24b2619953344130ba2eaf6d576dddceS'
-            },
-            body: JSON.stringify({
-              phone: chatData.contact_phone,
-              message: payload.content
-            })
-          });
-        } catch (zapiError) {
-          console.error("Erro ao despachar POST na Z-API:", zapiError);
+        if (payload.type === 'text') {
+          endpoint = 'send-text';
+          body.message = payload.content;
+        } else if (payload.type === 'image') {
+          endpoint = 'send-image';
+          body.image = payload.attachmentUrl;
+          body.caption = payload.content;
+        } else if (payload.type === 'audio') {
+          endpoint = 'send-audio';
+          body.audio = payload.attachmentUrl;
+        } else {
+          endpoint = 'send-document';
+          body.document = payload.attachmentUrl;
+          
+          // Detectar extensão para Base64 ou URL
+          if (payload.attachmentUrl?.startsWith('data:')) {
+            const match = payload.attachmentUrl.match(/^data:([^;]+);base64,/);
+            const mime = match ? match[1] : '';
+            body.extension = mime.split('/').pop() || 'pdf';
+          } else {
+            body.extension = payload.attachmentUrl?.split('.').pop()?.split('?')[0] || 'pdf';
+          }
+          
+          body.fileName = payload.content || 'arquivo';
         }
+
+        await fetch(`https://api.z-api.io/instances/${botData.zapi_instance}/token/${botData.zap_token}/${endpoint}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Client-Token': 'F24b2619953344130ba2eaf6d576dddceS'
+          },
+          body: JSON.stringify(body)
+        });
+      } catch (zapiError) {
+        console.error("Erro ao despachar POST na Z-API:", zapiError);
       }
     }
   }
@@ -253,11 +284,12 @@ export async function sendMessage(payload: {
   return {
     id: data.id,
     conversationId: data.chat_id,
-    content: data.content,
+    content: data.content || '',
     type: payload.type,
-    sender: data.sender_type as Message['sender'], 
+    sender: 'human',
     timestamp: new Date(data.created_at),
-    status: 'sent',
+    status: 'sent' as Message['status'],
+    attachmentUrl: payload.attachmentUrl
   };
 }
 
@@ -479,7 +511,10 @@ export async function reportContact(contactPhone: string, reason: string): Promi
 export async function takeoverConversation(conversationId: string): Promise<void> {
   const { error } = await supabase
     .from('chats')
-    .update({ status: 'assigned' }) // Apenas altera o status, evitando erro de tipagem UUID caso a coluna assigned_to exista
+    .update({ 
+      status: 'assigned',
+      bot_active: false 
+    })
     .eq('id', conversationId);
 
   if (error) throw error;
@@ -488,13 +523,26 @@ export async function takeoverConversation(conversationId: string): Promise<void
 export async function returnToBot(conversationId: string): Promise<void> {
   const { error } = await supabase
     .from('chats')
-    .update({ status: 'open' }) // Volta para bot
+    .update({ 
+      status: 'open',
+      bot_active: true 
+    })
     .eq('id', conversationId);
 
   if (error) throw error;
 }
 
-// --- Z-API & GCP Functions ---
+export async function moveToPending(conversationId: string): Promise<void> {
+  const { error } = await supabase
+    .from('chats')
+    .update({ 
+      status: 'pending',
+      bot_active: false 
+    })
+    .eq('id', conversationId);
+
+  if (error) throw error;
+}
 
 export async function generateWhatsAppQR(instanceId: string, token: string): Promise<{ qrCode: string }> {
   const cleanId = instanceId.trim();

@@ -26,9 +26,10 @@ interface ContactPanelProps {
   onDelete: () => void;
   onBlock: () => void;
   onReport: (reason: string) => void;
+  onClosePanel?: () => void;
 }
 
-export function ContactPanel({ conversation, messages = [], onClose, onTakeover, onReturnToBot, onDelete, onBlock, onReport }: ContactPanelProps) {
+export function ContactPanel({ conversation, messages = [], onClose, onTakeover, onReturnToBot, onDelete, onBlock, onReport, onClosePanel }: ContactPanelProps) {
   const [showCloseDialog, setShowCloseDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showBlockDialog, setShowBlockDialog] = useState(false);
@@ -53,7 +54,7 @@ export function ContactPanel({ conversation, messages = [], onClose, onTakeover,
         {/* Header */}
         <div className="p-4 border-b border-border flex items-center justify-between">
           <h3 className="font-semibold text-foreground">Informações do Contato</h3>
-          <Button variant="ghost" size="icon" onClick={() => {}}>
+          <Button variant="ghost" size="icon" onClick={onClosePanel}>
             <X className="w-4 h-4" />
           </Button>
         </div>
@@ -62,10 +63,14 @@ export function ContactPanel({ conversation, messages = [], onClose, onTakeover,
         <div className="flex-1 overflow-y-auto">
           {/* Profile */}
           <div className="p-6 text-center">
-            <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
-              <span className="text-3xl font-semibold text-muted-foreground">
-                {conversation.contactName.charAt(0).toUpperCase()}
-              </span>
+            <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center mx-auto mb-3 overflow-hidden">
+              {conversation.avatarUrl ? (
+                <img src={conversation.avatarUrl} alt={conversation.contactName} className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-3xl font-semibold text-muted-foreground">
+                  {conversation.contactName.charAt(0).toUpperCase()}
+                </span>
+              )}
             </div>
             <h4 className="font-semibold text-lg text-foreground">
               {conversation.contactName}

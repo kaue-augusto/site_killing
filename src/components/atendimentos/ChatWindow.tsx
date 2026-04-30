@@ -5,11 +5,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { format, isSameDay, isToday, isYesterday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { toast } from '@/hooks/use-toast';
 
 interface ChatWindowProps {
   conversation: Conversation | null;
   messages: Message[];
-  onSendMessage: (content: string, type: Message['type']) => void;
+  onSendMessage: (content: string, type: Message['type'], attachmentUrl?: string) => void;
   isLoading?: boolean;
   onBack?: () => void;
   onOpenContact?: () => void;
@@ -24,16 +25,63 @@ export function ChatWindow({
   onOpenContact,
 }: ChatWindowProps) {
   const [inputValue, setInputValue] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [pendingFileType, setPendingFileType] = useState<Message['type']>('file');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
+  const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
   }, [messages]);
 
   const handleSend = () => {
     if (inputValue.trim()) {
       onSendMessage(inputValue.trim(), 'text');
       setInputValue('');
+    }
+  };
+
+  const triggerFileSelect = (type: Message['type']) => {
+    setPendingFileType(type);
+    fileInputRef.current?.click();
+  };
+
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = error => reject(error);
+    });
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    try {
+      // Converte para Base64 em vez de fazer upload para bucket
+      const base64Data = await fileToBase64(file);
+      onSendMessage(file.name, pendingFileType, base64Data);
+      
+      toast({
+        title: 'Sucesso',
+        description: 'Arquivo preparado para envio',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Erro no arquivo',
+        description: error.message || 'Não foi possível processar o arquivo',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUploading(false);
+      if (e.target) e.target.value = '';
     }
   };
 
@@ -76,16 +124,23 @@ export function ChatWindow({
   return (
     <div className="flex-1 flex flex-col bg-background w-full min-w-0">
       <div className="h-16 border-b border-border px-4 flex items-center justify-between bg-card shrink-0">
-        <div className="flex items-center gap-3">
+        <div 
+          className="flex items-center gap-3 cursor-pointer hover:bg-secondary/50 p-1 rounded-lg transition-colors" 
+          onClick={onOpenContact}
+        >
           {onBack && (
-            <Button variant="ghost" size="icon" onClick={onBack} className="md:hidden shrink-0 -ml-2">
+            <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); onBack(); }} className="md:hidden shrink-0 -ml-2">
               <ChevronLeft className="w-5 h-5" />
             </Button>
           )}
-          <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center shrink-0">
-            <span className="text-lg font-semibold text-muted-foreground">
-              {conversation.contactName.charAt(0).toUpperCase()}
-            </span>
+          <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center shrink-0 overflow-hidden">
+            {conversation.avatarUrl ? (
+              <img src={conversation.avatarUrl} alt={conversation.contactName} className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-lg font-semibold text-muted-foreground">
+                {conversation.contactName.charAt(0).toUpperCase()}
+              </span>
+            )}
           </div>
           <div className="min-w-0">
             <h2 className="font-medium text-foreground truncate">{conversation.contactName}</h2>
@@ -153,17 +208,35 @@ export function ChatWindow({
                   >
                     {/* Detectar se é áudio pelo tipo ou pela extensão do arquivo */}
                     {(msg.type === 'audio' || (msg.attachmentUrl && /\.(mp3|wav|ogg|m4a|opus|aac)(\?.*)?$/i.test(msg.attachmentUrl))) && (
-                      <audio controls src={msg.attachmentUrl || msg.content} className="max-w-full mb-1" />
+                      msg.attachmentUrl ? (
+                        <audio controls src={msg.attachmentUrl} className="max-w-full mb-1" />
+                      ) : (
+                        <div className="flex items-center gap-2 mb-1 opacity-70 text-sm italic">
+                          🎵 Áudio enviado
+                        </div>
+                      )
                     )}
                     
                     {msg.type === 'image' && (
-                      <img src={msg.attachmentUrl || msg.content} alt="Imagem" className="max-w-full rounded-lg mb-1" />
+                      msg.attachmentUrl ? (
+                        <img src={msg.attachmentUrl} alt="Imagem" className="max-w-full rounded-lg mb-1" />
+                      ) : (
+                        <div className="p-3 bg-black/5 dark:bg-white/5 rounded border border-white/10 mb-1 text-sm italic opacity-70">
+                          🖼️ Imagem: {msg.content || 'enviada'}
+                        </div>
+                      )
                     )}
                     
                     {(msg.type === 'document' || msg.type === 'file' || msg.type === 'pdf') && (
-                      <a href={msg.attachmentUrl || msg.content} target="_blank" rel="noreferrer" className="flex items-center gap-2 underline mb-1 font-semibold">
-                        <File className="w-4 h-4" /> Documento Anexado
-                      </a>
+                      msg.attachmentUrl ? (
+                        <a href={msg.attachmentUrl} target="_blank" rel="noreferrer" className="flex items-center gap-2 underline mb-1 font-semibold">
+                          <File className="w-4 h-4" /> {msg.content || 'Documento Anexado'}
+                        </a>
+                      ) : (
+                        <div className="flex items-center gap-2 mb-1 opacity-70 text-sm">
+                          <File className="w-4 h-4" /> {msg.content || 'Arquivo enviado'}
+                        </div>
+                      )
                     )}
                     
                     {/* Exibir transcrição ou legenda se houver anexo e conteúdo de texto */}
@@ -202,34 +275,63 @@ export function ChatWindow({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Composer */}
       <div className="p-4 border-t border-border bg-card shrink-0">
+        <input 
+          type="file" 
+          ref={fileInputRef} 
+          className="hidden" 
+          onChange={handleFileChange}
+        />
         <div className="flex items-end gap-1 md:gap-2">
-          <Button variant="ghost" size="icon" className="shrink-0 text-muted-foreground hover:text-foreground">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="shrink-0 text-muted-foreground hover:text-foreground"
+            onClick={() => triggerFileSelect('file')}
+            disabled={isUploading}
+          >
             <Paperclip className="w-5 h-5" />
           </Button>
-          <Button variant="ghost" size="icon" className="shrink-0 hidden sm:flex text-muted-foreground hover:text-foreground">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="shrink-0 hidden sm:flex text-muted-foreground hover:text-foreground"
+            onClick={() => triggerFileSelect('image')}
+            disabled={isUploading}
+          >
             <Image className="w-5 h-5" />
           </Button>
-          <Button variant="ghost" size="icon" className="shrink-0 hidden sm:flex text-muted-foreground hover:text-foreground">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="shrink-0 hidden sm:flex text-muted-foreground hover:text-foreground"
+            onClick={() => triggerFileSelect('file')}
+            disabled={isUploading}
+          >
             <File className="w-5 h-5" />
           </Button>
           <div className="flex-1 min-w-0 bg-secondary rounded-xl min-h-[44px] flex items-center px-4">
             <Input
-              placeholder="Digite uma mensagem..."
+              placeholder={isUploading ? "Enviando arquivo..." : "Digite uma mensagem..."}
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyPress={handleKeyPress}
               className="flex-1 bg-transparent border-none focus-visible:ring-0 px-0"
+              disabled={isUploading}
             />
           </div>
 
           {inputValue.trim() ? (
-            <Button size="icon" onClick={handleSend}>
+            <Button 
+              size="icon" 
+              onClick={handleSend}
+              className="bg-primary text-primary-foreground rounded-full transition-all"
+              disabled={isUploading}
+            >
               <Send className="w-5 h-5" />
             </Button>
           ) : (
-            <Button variant="ghost" size="icon" className="text-muted-foreground">
+            <Button variant="ghost" size="icon" className="text-muted-foreground shrink-0" disabled={isUploading}>
               <Mic className="w-5 h-5" />
             </Button>
           )}

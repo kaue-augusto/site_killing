@@ -11,6 +11,7 @@ import {
   reportContact,
   takeoverConversation,
   returnToBot,
+  moveToPending,
   Conversation,
   Message
 } from '@/lib/api';
@@ -28,6 +29,7 @@ export default function Atendimentos() {
   const [isLoadingConversations, setIsLoadingConversations] = useState(true);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isContactPanelOpen, setIsContactPanelOpen] = useState(false);
+  const [isSidePanelOpen, setIsSidePanelOpen] = useState(true);
 
   // Fetch conversations when bot changes
   useEffect(() => {
@@ -37,6 +39,7 @@ export default function Atendimentos() {
       setIsLoadingConversations(true);
       setSelectedConversation(null);
       setMessages([]);
+      setIsSidePanelOpen(true);
       try {
         const data = await fetchConversations(selectedBot.slug);
         setConversations(data);
@@ -104,11 +107,31 @@ export default function Atendimentos() {
             type: rawMsg.message_type || rawMsg.type || 'text',
             sender: rawMsg.sender_type as Message['sender'],
             timestamp: new Date(rawMsg.created_at),
-            status: 'read',
+            status: 'read' as Message['status'],
             attachmentUrl: rawMsg.media_url || rawMsg.attachment_url || rawMsg.file_url || (rawMsg.message_type && rawMsg.message_type !== 'text' && rawMsg.content && rawMsg.content.startsWith('http') ? rawMsg.content : undefined)
           };
 
           // Adiciona a mensagem nova na tela se ela já não estiver lá
+          if (newMessage.content === 'Robô pausado') return;
+
+          // Se for uma mensagem de transferência do robô, atualizar status do chat automaticamente
+          if (newMessage.sender === 'agent' && newMessage.content.toLowerCase().includes('transferindo seu atendimento')) {
+            moveToPending(newMessage.conversationId).then(() => {
+               // Atualizar localmente a conversa selecionada se for ela
+               setSelectedConversation(prev => {
+                 if (prev && prev.id === newMessage.conversationId) {
+                   return { ...prev, status: 'pending' };
+                 }
+                 return prev;
+               });
+               
+               // Atualizar lista de conversas para refletir o novo status
+               if (selectedBot) {
+                 fetchConversations(selectedBot.slug).then(setConversations);
+               }
+            });
+          }
+          
           setMessages((prev) => {
             if (prev.some((msg) => msg.id === newMessage.id)) return prev;
             return [...prev, newMessage];
@@ -164,9 +187,10 @@ export default function Atendimentos() {
 
   const handleSelectConversation = (conversation: Conversation) => {
     setSelectedConversation(conversation);
+    setIsSidePanelOpen(true);
   };
 
-  const handleSendMessage = async (content: string, type: Message['type']) => {
+  const handleSendMessage = async (content: string, type: Message['type'], attachmentUrl?: string) => {
     if (!selectedConversation) return;
 
     try {
@@ -174,6 +198,7 @@ export default function Atendimentos() {
         conversationId: selectedConversation.id,
         content,
         type,
+        attachmentUrl
       });
       setMessages((prev) => {
         if (prev.some(m => m.id === newMessage.id)) return prev;
@@ -332,21 +357,24 @@ export default function Atendimentos() {
             onSendMessage={handleSendMessage}
             isLoading={isLoadingMessages}
             onBack={() => setSelectedConversation(null)}
-            onOpenContact={() => setIsContactPanelOpen(true)}
+            onOpenContact={() => setIsSidePanelOpen(!isSidePanelOpen)}
           />
 
-          <div className="hidden lg:block h-full shrink-0">
-            <ContactPanel
-              conversation={selectedConversation}
-              messages={messages}
-              onClose={handleCloseConversation}
-              onTakeover={handleTakeoverConversation}
-              onReturnToBot={handleReturnToBot}
-              onDelete={handleDeleteConversation}
-              onBlock={handleBlockContact}
-              onReport={handleReportContact}
-            />
-          </div>
+          {isSidePanelOpen && (
+            <div className="hidden lg:block h-full shrink-0">
+              <ContactPanel
+                conversation={selectedConversation}
+                messages={messages}
+                onClose={handleCloseConversation}
+                onTakeover={handleTakeoverConversation}
+                onReturnToBot={handleReturnToBot}
+                onDelete={handleDeleteConversation}
+                onBlock={handleBlockContact}
+                onReport={handleReportContact}
+                onClosePanel={() => setIsSidePanelOpen(false)}
+              />
+            </div>
+          )}
 
           <Sheet open={isContactPanelOpen} onOpenChange={setIsContactPanelOpen}>
             <SheetContent side="right" className="p-0 w-80 sm:w-96 border-none">
@@ -359,6 +387,7 @@ export default function Atendimentos() {
                 onDelete={() => { setIsContactPanelOpen(false); handleDeleteConversation(); }}
                 onBlock={() => { setIsContactPanelOpen(false); handleBlockContact(); }}
                 onReport={(reason) => { setIsContactPanelOpen(false); handleReportContact(reason); }}
+                onClosePanel={() => setIsContactPanelOpen(false)}
               />
             </SheetContent>
           </Sheet>
