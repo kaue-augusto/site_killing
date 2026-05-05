@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Send, Paperclip, Mic, Image, File, Check, CheckCheck, ChevronLeft, MoreVertical } from 'lucide-react';
-import { Message, Conversation } from '@/lib/api';
+import { Message, Conversation, uploadPdfToGCP } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { format, isSameDay, isToday, isYesterday } from 'date-fns';
@@ -10,6 +10,7 @@ import { toast } from '@/hooks/use-toast';
 interface ChatWindowProps {
   conversation: Conversation | null;
   messages: Message[];
+  botId?: string;
   onSendMessage: (content: string, type: Message['type'], attachmentUrl?: string) => void;
   isLoading?: boolean;
   onBack?: () => void;
@@ -19,6 +20,7 @@ interface ChatWindowProps {
 export function ChatWindow({
   conversation,
   messages,
+  botId,
   onSendMessage,
   isLoading,
   onBack,
@@ -26,22 +28,45 @@ export function ChatWindow({
 }: ChatWindowProps) {
   const [inputValue, setInputValue] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+  const [isSending, setIsSending] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pendingFileType, setPendingFileType] = useState<Message['type']>('file');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const scrollToBottom = (behavior: 'smooth' | 'auto' = 'smooth') => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior });
+    }
   };
 
+  // Scroll on mount and when messages change
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    if (messages.length > 0) {
+      // Small delay to ensure rendering and images are starting to load
+      const timer = setTimeout(() => scrollToBottom(messages.length <= 10 ? 'auto' : 'smooth'), 100);
+      return () => clearTimeout(timer);
+    }
+  }, [messages, conversation?.id]);
 
-  const handleSend = () => {
-    if (inputValue.trim()) {
-      onSendMessage(inputValue.trim(), 'text');
-      setInputValue('');
+  // Scroll to bottom when conversation changes to ensure we start at the end
+  useEffect(() => {
+    if (conversation) {
+      const timer = setTimeout(() => scrollToBottom('auto'), 50);
+      return () => clearTimeout(timer);
+    }
+  }, [conversation?.id]);
+
+  const handleSend = async () => {
+    if (inputValue.trim() && !isSending) {
+      setIsSending(true);
+      try {
+        await onSendMessage(inputValue.trim(), 'text');
+        setInputValue('');
+      } catch (error) {
+        console.error('Error sending message:', error);
+      } finally {
+        setIsSending(false);
+      }
     }
   };
 
@@ -65,18 +90,22 @@ export function ChatWindow({
 
     setIsUploading(true);
     try {
-      // Converte para Base64 em vez de fazer upload para bucket
-      const base64Data = await fileToBase64(file);
-      onSendMessage(file.name, pendingFileType, base64Data);
+      // Usar a função de upload para GCP/Supabase em vez de Base64
+      // Se não tiver botId (improvável), cai no fallback de Base64
+      let fileUrl = '';
+      if (botId) {
+        const uploadResult = await uploadPdfToGCP(file, botId, 'chat-attachments');
+        fileUrl = uploadResult.url;
+      } else {
+        fileUrl = await fileToBase64(file);
+      }
       
-      toast({
-        title: 'Sucesso',
-        description: 'Arquivo preparado para envio',
-      });
+      await onSendMessage(file.name, pendingFileType, fileUrl);
     } catch (error: any) {
+      console.error('Error uploading file:', error);
       toast({
         title: 'Erro no arquivo',
-        description: error.message || 'Não foi possível processar o arquivo',
+        description: error.message || 'Não foi possível enviar o arquivo',
         variant: 'destructive',
       });
     } finally {
@@ -122,7 +151,7 @@ export function ChatWindow({
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-background w-full min-w-0">
+    <div className="flex-1 flex flex-col bg-background w-full min-w-0 h-full max-h-full overflow-hidden">
       <div className="h-16 border-b border-border px-4 flex items-center justify-between bg-card shrink-0">
         <div 
           className="flex items-center gap-3 cursor-pointer hover:bg-secondary/50 p-1 rounded-lg transition-colors" 
@@ -142,20 +171,24 @@ export function ChatWindow({
               </span>
             )}
           </div>
-          <div className="min-w-0">
-            <h2 className="font-medium text-foreground truncate">{conversation.contactName}</h2>
-            <p className="text-sm text-muted-foreground truncate">{conversation.contactPhone}</p>
+          <div className="min-w-0 flex-1">
+            <h3 className="font-semibold text-foreground truncate">
+              {conversation.contactName}
+            </h3>
+            <p className="text-xs text-muted-foreground truncate">
+              {conversation.contactPhone}
+            </p>
           </div>
         </div>
         {onOpenContact && (
-          <Button variant="ghost" size="icon" onClick={onOpenContact} className="lg:hidden shrink-0 -mr-2">
-            <MoreVertical className="w-5 h-5" />
+          <Button variant="ghost" size="icon" onClick={onOpenContact} className="shrink-0">
+            <MoreVertical className="w-5 h-5 text-muted-foreground" />
           </Button>
         )}
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-3">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-3 min-h-0">
         {isLoading ? (
           <div className="space-y-3">
             {[1, 2, 3].map((i) => (
@@ -219,7 +252,12 @@ export function ChatWindow({
                     
                     {msg.type === 'image' && (
                       msg.attachmentUrl ? (
-                        <img src={msg.attachmentUrl} alt="Imagem" className="max-w-full rounded-lg mb-1" />
+                        <img 
+                          src={msg.attachmentUrl} 
+                          alt="Imagem" 
+                          className="max-w-full rounded-lg mb-1" 
+                          onLoad={() => scrollToBottom('auto')}
+                        />
                       ) : (
                         <div className="p-3 bg-black/5 dark:bg-white/5 rounded border border-white/10 mb-1 text-sm italic opacity-70">
                           🖼️ Imagem: {msg.content || 'enviada'}
@@ -275,7 +313,7 @@ export function ChatWindow({
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="p-4 border-t border-border bg-card shrink-0">
+      <div className="p-2 md:p-4 border-t border-border bg-card shrink-0">
         <input 
           type="file" 
           ref={fileInputRef} 
@@ -286,7 +324,7 @@ export function ChatWindow({
           <Button 
             variant="ghost" 
             size="icon" 
-            className="shrink-0 text-muted-foreground hover:text-foreground"
+            className="shrink-0 text-muted-foreground hover:text-foreground h-9 w-9 md:h-10 md:w-10"
             onClick={() => triggerFileSelect('file')}
             disabled={isUploading}
           >
@@ -326,12 +364,12 @@ export function ChatWindow({
               size="icon" 
               onClick={handleSend}
               className="bg-primary text-primary-foreground rounded-full transition-all"
-              disabled={isUploading}
+              disabled={isUploading || isSending}
             >
-              <Send className="w-5 h-5" />
+              <Send className={`w-5 h-5 ${isSending ? 'animate-pulse' : ''}`} />
             </Button>
           ) : (
-            <Button variant="ghost" size="icon" className="text-muted-foreground shrink-0" disabled={isUploading}>
+            <Button variant="ghost" size="icon" className="text-muted-foreground shrink-0" disabled={isUploading || isSending}>
               <Mic className="w-5 h-5" />
             </Button>
           )}

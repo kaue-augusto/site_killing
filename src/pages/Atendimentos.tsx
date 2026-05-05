@@ -12,6 +12,7 @@ import {
   takeoverConversation,
   returnToBot,
   moveToPending,
+  getWhatsAppProfilePic,
   Conversation,
   Message
 } from '@/lib/api';
@@ -80,6 +81,47 @@ export default function Atendimentos() {
     loadMessages();
   }, [selectedConversation]);
 
+  // Efeito para buscar a foto do usuário se não tiver
+  useEffect(() => {
+    const loadProfilePic = async () => {
+      if (selectedConversation && !selectedConversation.avatarUrl && selectedBot) {
+        try {
+          const { data: botData } = await supabase
+            .from('bots')
+            .select('zapi_instance, zap_token')
+            .eq('slug', selectedBot.slug)
+            .single();
+
+          if (botData?.zapi_instance && botData?.zap_token) {
+            const picUrl = await getWhatsAppProfilePic(
+              botData.zapi_instance,
+              botData.zap_token,
+              selectedConversation.contactPhone
+            );
+            
+            if (picUrl) {
+              setSelectedConversation(prev => 
+                prev?.id === selectedConversation.id 
+                  ? { ...prev, avatarUrl: picUrl } 
+                  : prev
+              );
+              
+              setConversations(prev => prev.map(c => 
+                c.id === selectedConversation.id 
+                  ? { ...c, avatarUrl: picUrl } 
+                  : c
+              ));
+            }
+          }
+        } catch (error) {
+          console.warn("Não foi possível carregar a foto do perfil:", error);
+        }
+      }
+    };
+
+    loadProfilePic();
+  }, [selectedConversation?.id, selectedBot]);
+
   // ------------------------------------------------------------------
   // 🟢 REALTIME 1: Atualiza as MENSAGENS do chat aberto na tela
   // ------------------------------------------------------------------
@@ -112,7 +154,7 @@ export default function Atendimentos() {
           };
 
           // Adiciona a mensagem nova na tela se ela já não estiver lá
-          if (newMessage.content === 'Robô pausado') return;
+          if (newMessage.content.includes('Robô pausado')) return;
 
           // Se for uma mensagem de transferência do robô, atualizar status do chat automaticamente
           if (newMessage.sender === 'agent' && newMessage.content.toLowerCase().includes('transferindo seu atendimento')) {
@@ -340,7 +382,7 @@ export default function Atendimentos() {
   };
 
   return (
-    <div className="h-full flex overflow-hidden">
+    <div className="flex-1 flex overflow-hidden min-h-0 h-full">
       <ConversationList
         className={selectedConversation ? 'hidden md:flex' : 'flex'}
         conversations={conversations}
@@ -354,10 +396,17 @@ export default function Atendimentos() {
           <ChatWindow
             conversation={selectedConversation}
             messages={messages}
+            botId={selectedBot.id}
             onSendMessage={handleSendMessage}
             isLoading={isLoadingMessages}
             onBack={() => setSelectedConversation(null)}
-            onOpenContact={() => setIsSidePanelOpen(!isSidePanelOpen)}
+            onOpenContact={() => {
+              if (window.innerWidth < 1024) {
+                setIsContactPanelOpen(true);
+              } else {
+                setIsSidePanelOpen(!isSidePanelOpen);
+              }
+            }}
           />
 
           {isSidePanelOpen && (

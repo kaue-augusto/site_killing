@@ -180,17 +180,37 @@ export async function fetchMessages(conversationId: string): Promise<Message[]> 
   console.log(`✅ Mensagens encontradas para o chat ${conversationId}:`, data);
 
   return (data as any[])
-    .map((msg): Message => ({
-      id: msg.id,
-      conversationId: msg.chat_id || '',
-      content: msg.content || '',
-      type: (msg.message_type === 'ptt' ? 'audio' : (msg.message_type || msg.type || 'text')) as Message['type'],
-      sender: msg.sender_type as Message['sender'],
-      timestamp: msg.created_at ? new Date(msg.created_at) : new Date(),
-      status: 'read' as Message['status'],
-      attachmentUrl: msg.media_url || msg.attachment_url || msg.file_url || msg.url || msg.link || msg.mediaUrl || msg.fileUrl || msg.audioUrl || msg.audio_url || (msg.message_type && msg.message_type !== 'text' && msg.content && msg.content.startsWith('http') ? msg.content : undefined)
-    }))
-    .filter(msg => msg.content !== 'Robô pausado');
+    .map((msg): Message => {
+      let type: Message['type'] = 'text';
+      let content = msg.content || '';
+      
+      // Detecção por prefixo (Convenção para economizar banco)
+      if (content.startsWith('[IMAGE]')) {
+        type = 'image';
+        content = content.replace('[IMAGE]', '').trim();
+      } else if (content.startsWith('[AUDIO]')) {
+        type = 'audio';
+        content = content.replace('[AUDIO]', '').trim();
+      } else if (content.startsWith('[FILE]')) {
+        type = 'file';
+        content = content.replace('[FILE]', '').trim();
+      } else if (msg.message_type) {
+        // Fallback para colunas que podem existir no banco mas não no tipo
+        type = (msg.message_type === 'ptt' ? 'audio' : msg.message_type) as Message['type'];
+      }
+
+      return {
+        id: msg.id,
+        conversationId: msg.chat_id || '',
+        content: content,
+        type: type,
+        sender: msg.sender_type as Message['sender'],
+        timestamp: msg.created_at ? new Date(msg.created_at) : new Date(),
+        status: 'read' as Message['status'],
+        attachmentUrl: msg.media_url || msg.attachment_url || undefined
+      };
+    })
+    .filter(msg => !msg.content.includes('Robô pausado'));
 }
 
 export async function sendMessage(payload: {
@@ -200,15 +220,19 @@ export async function sendMessage(payload: {
   attachmentUrl?: string;
 }): Promise<Message> {
   
-  // 1. Inserir no banco de dados (Para aparecer no painel)
+  // 1. Preparar o conteúdo com prefixo se for mídia
+  let dbContent = payload.content;
+  if (payload.type === 'image') dbContent = `[IMAGE] ${payload.content}`;
+  else if (payload.type === 'audio') dbContent = `[AUDIO] ${payload.content}`;
+  else if (payload.type === 'file' || payload.type === 'document') dbContent = `[FILE] ${payload.content}`;
+
+  // 2. Inserir no banco de dados (Apenas colunas que sabemos que existem)
   const { data, error } = await supabase
     .from('messages')
     .insert({
       chat_id: payload.conversationId,
-      content: payload.content,
-      sender_type: 'human',
-      message_type: payload.type === 'image' ? 'image' : (payload.type === 'audio' ? 'audio' : (payload.type === 'text' ? 'text' : 'document')),
-      media_url: payload.type === 'text' ? payload.attachmentUrl : null // Não salva Base64 no banco
+      content: dbContent,
+      sender_type: 'human'
     })
     .select()
     .single();
@@ -218,8 +242,9 @@ export async function sendMessage(payload: {
     throw new Error(error.message);
   }
 
-  // 2. Enviar a mensagem de verdade para o WhatsApp via Z-API
-  // Buscar qual é o telefone do usuário e qual é o bot
+  if (!data) throw new Error("Erro: O banco não retornou os dados da mensagem salva.");
+
+  // 3. Enviar para WhatsApp via Z-API
   const { data: chatData } = await supabase
     .from('chats')
     .select('contact_phone, bot_id')
@@ -227,47 +252,83 @@ export async function sendMessage(payload: {
     .single();
 
   if (chatData) {
-    // Buscar token e as credenciais da Z-API do robô atual
     const { data: botData } = await supabase
       .from('bots')
       .select('zapi_instance, zap_token')
       .eq('id', chatData.bot_id)
       .single();
 
-    if (botData && botData.zapi_instance && botData.zap_token) {
+    if (botData?.zapi_instance && botData?.zap_token) {
+      const instanceId = botData.zapi_instance.trim();
+      const token = botData.zap_token.trim();
+      
       try {
         let endpoint = 'send-text';
-        let body: any = {
-          phone: chatData.contact_phone
-        };
+        let body: any = { phone: chatData.contact_phone };
+
+        // Limpar Base64 se necessário
+        const isUrl = payload.attachmentUrl?.startsWith('http');
+        const cleanAttachment = isUrl 
+          ? payload.attachmentUrl 
+          : payload.attachmentUrl?.split(';base64,').pop() || '';
+
+        if (cleanAttachment && cleanAttachment.length > 50) {
+          console.log(`📎 Tamanho do anexo: ${(cleanAttachment.length / 1024).toFixed(2)} KB`);
+        }
 
         if (payload.type === 'text') {
           endpoint = 'send-text';
           body.message = payload.content;
         } else if (payload.type === 'image') {
           endpoint = 'send-image';
-          body.image = payload.attachmentUrl;
+          body.image = cleanAttachment;
           body.caption = payload.content;
-        } else if (payload.type === 'audio') {
-          endpoint = 'send-audio';
-          body.audio = payload.attachmentUrl;
-        } else {
-          endpoint = 'send-document';
-          body.document = payload.attachmentUrl;
-          
-          // Detectar extensão para Base64 ou URL
           if (payload.attachmentUrl?.startsWith('data:')) {
             const match = payload.attachmentUrl.match(/^data:([^;]+);base64,/);
-            const mime = match ? match[1] : '';
-            body.extension = mime.split('/').pop() || 'pdf';
+            if (match) body.mimeType = match[1];
+          }
+        } else if (payload.type === 'audio') {
+          endpoint = 'send-audio';
+          body.audio = cleanAttachment;
+        } else {
+          endpoint = 'send-document';
+          body.document = cleanAttachment;
+          body.fileName = payload.content || 'arquivo';
+          
+          // Melhorar detecção de extensão
+          if (payload.attachmentUrl?.startsWith('data:')) {
+            const match = payload.attachmentUrl.match(/^data:([^;]+);base64,/);
+            const mimeType = match ? match[1] : '';
+            
+            // Mapeamento de mime types comuns para extensões curtas que a Z-API prefere
+            const mimeMap: Record<string, string> = {
+              'application/pdf': 'pdf',
+              'image/jpeg': 'jpg',
+              'image/png': 'png',
+              'text/csv': 'csv',
+              'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+              'application/vnd.ms-excel': 'xls',
+              'application/msword': 'doc',
+              'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+              'text/plain': 'txt'
+            };
+            
+            if (isUrl) {
+              const urlExtension = payload.attachmentUrl?.split('.').pop()?.split('?')[0];
+              if (urlExtension && urlExtension.length <= 4) body.extension = urlExtension;
+              else body.extension = 'pdf';
+            } else {
+              body.extension = mimeMap[mimeType] || mimeType.split('/').pop() || 'pdf';
+            }
+            if (mimeType) body.mimeType = mimeType;
           } else {
             body.extension = payload.attachmentUrl?.split('.').pop()?.split('?')[0] || 'pdf';
           }
-          
-          body.fileName = payload.content || 'arquivo';
         }
 
-        await fetch(`https://api.z-api.io/instances/${botData.zapi_instance}/token/${botData.zap_token}/${endpoint}`, {
+        console.log(`🚀 Enviando para Z-API: ${endpoint}`, body);
+
+        const response = await fetch(`https://api.z-api.io/instances/${instanceId}/token/${token}/${endpoint}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -275,8 +336,18 @@ export async function sendMessage(payload: {
           },
           body: JSON.stringify(body)
         });
-      } catch (zapiError) {
-        console.error("Erro ao despachar POST na Z-API:", zapiError);
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`❌ Erro na Z-API (${response.status}):`, errorText);
+          throw new Error(`Z-API: ${response.status} - ${errorText}`);
+        }
+        
+        console.log("✅ Enviado com sucesso para Z-API");
+      } catch (zapiError: any) {
+        console.error("Erro na Z-API:", zapiError);
+        // Re-throw para o componente UI saber que falhou
+        throw zapiError;
       }
     }
   }
@@ -284,11 +355,11 @@ export async function sendMessage(payload: {
   return {
     id: data.id,
     conversationId: data.chat_id,
-    content: data.content || '',
+    content: payload.content,
     type: payload.type,
     sender: 'human',
     timestamp: new Date(data.created_at),
-    status: 'sent' as Message['status'],
+    status: 'sent',
     attachmentUrl: payload.attachmentUrl
   };
 }
@@ -624,6 +695,21 @@ export async function getWhatsAppStatus(instanceId: string, token: string): Prom
   }
 }
 
+export async function getWhatsAppProfilePic(instanceId: string, token: string, phone: string): Promise<string | null> {
+  try {
+    const response = await fetch(`https://api.z-api.io/instances/${instanceId}/token/${token}/profile-picture?phone=${phone}`, {
+      method: 'GET',
+      headers: { 'Client-Token': 'F24b2619953344130ba2eaf6d576dddceS' }
+    });
+
+    if (!response.ok) return null;
+    const data = await response.json();
+    return data.value || null;
+  } catch (e) {
+    return null;
+  }
+}
+
 export async function disconnectWhatsApp(instanceId: string, token: string): Promise<void> {
   const cleanId = instanceId.trim();
   const cleanToken = token.trim();
@@ -691,7 +777,7 @@ export async function fetchBotPdfs(botSlug: string): Promise<{ id: string, name:
   return data.map((file) => ({
     id: file.id.toString(),
     name: file.nome_arquivo || 'Documento.pdf',
-    size: file.tamanho || 'Tamanho desconhecido', // Tirei o as any daqui também
+    size: file.tamanho || 'Tamanho desconhecido',
     url: file.caminho_gcp
   }));
 }
@@ -704,6 +790,10 @@ export async function viewSecurePdf(fileUrl: string): Promise<void> {
   if (error) throw new Error(error.message);
   if (!data || !data.fileData) throw new Error("Não foi possível carregar o documento.");
 
+  downloadFile({ fileName: 'documento.pdf', fileData: data.fileData, contentType: data.contentType });
+}
+
+export async function downloadFile(data: { fileName: string, fileData: string, contentType?: string }): Promise<void> {
   const byteCharacters = atob(data.fileData);
   const byteNumbers = new Array(byteCharacters.length);
   for (let i = 0; i < byteCharacters.length; i++) {

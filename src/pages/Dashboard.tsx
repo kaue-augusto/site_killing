@@ -23,6 +23,7 @@ import {
   PieChart,
   Pie,
   Cell,
+  Legend,
 } from 'recharts';
 
 const COLORS = ['hsl(152, 60%, 45%)', 'hsl(220, 70%, 50%)', 'hsl(38, 92%, 50%)', 'hsl(0, 70%, 50%)'];
@@ -156,12 +157,13 @@ export default function Dashboard() {
                   paddingAngle={5}
                   dataKey="count"
                   nameKey="bot"
-                  label={({ bot, count }) => `${bot}: ${count}`}
+                  label={false}
                 >
                   {data.conversationsByBot.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
+                <Legend verticalAlign="bottom" height={36}/>
                 <Tooltip
                   contentStyle={{
                     backgroundColor: 'hsl(220, 18%, 13%)',

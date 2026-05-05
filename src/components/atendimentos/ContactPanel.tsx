@@ -54,7 +54,7 @@ export function ContactPanel({ conversation, messages = [], onClose, onTakeover,
         {/* Header */}
         <div className="p-4 border-b border-border flex items-center justify-between">
           <h3 className="font-semibold text-foreground">Informações do Contato</h3>
-          <Button variant="ghost" size="icon" onClick={onClosePanel}>
+          <Button variant="ghost" size="icon" onClick={onClosePanel} className="hidden lg:flex">
             <X className="w-4 h-4" />
           </Button>
         </div>
