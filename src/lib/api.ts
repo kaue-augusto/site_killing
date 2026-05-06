@@ -252,11 +252,16 @@ export async function sendMessage(payload: {
     .single();
 
   if (chatData) {
-    const { data: botData } = await supabase
+    const { data: botData, error: botError } = await supabase
       .from('bots')
       .select('zapi_instance, zap_token')
       .eq('id', chatData.bot_id)
       .single();
+
+    if (botError) {
+      console.error("❌ Erro ao buscar credenciais do bot:", botError);
+      // Não trava o processo se já salvou no banco, mas avisa
+    }
 
     if (botData?.zapi_instance && botData?.zap_token) {
       const instanceId = botData.zapi_instance.trim();
@@ -295,12 +300,17 @@ export async function sendMessage(payload: {
           body.document = cleanAttachment;
           body.fileName = payload.content || 'arquivo';
           
-          // Melhorar detecção de extensão
-          if (payload.attachmentUrl?.startsWith('data:')) {
+          // Se for URL, extrair extensão da URL
+          if (isUrl) {
+            const urlExtension = payload.attachmentUrl?.split('.').pop()?.split('?')[0];
+            if (urlExtension && urlExtension.length <= 4) body.extension = urlExtension;
+            else body.extension = 'pdf';
+          } 
+          // Se for Base64, usar mimeMap
+          else if (payload.attachmentUrl?.startsWith('data:')) {
             const match = payload.attachmentUrl.match(/^data:([^;]+);base64,/);
             const mimeType = match ? match[1] : '';
             
-            // Mapeamento de mime types comuns para extensões curtas que a Z-API prefere
             const mimeMap: Record<string, string> = {
               'application/pdf': 'pdf',
               'image/jpeg': 'jpg',
@@ -313,13 +323,7 @@ export async function sendMessage(payload: {
               'text/plain': 'txt'
             };
             
-            if (isUrl) {
-              const urlExtension = payload.attachmentUrl?.split('.').pop()?.split('?')[0];
-              if (urlExtension && urlExtension.length <= 4) body.extension = urlExtension;
-              else body.extension = 'pdf';
-            } else {
-              body.extension = mimeMap[mimeType] || mimeType.split('/').pop() || 'pdf';
-            }
+            body.extension = mimeMap[mimeType] || mimeType.split('/').pop() || 'pdf';
             if (mimeType) body.mimeType = mimeType;
           } else {
             body.extension = payload.attachmentUrl?.split('.').pop()?.split('?')[0] || 'pdf';
