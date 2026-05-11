@@ -333,13 +333,15 @@ export function ChatWindow({
                         : 'chat-bubble-received'
                     }`}
                   >
-                    {/* Detectar se é áudio pelo tipo ou pela extensão do arquivo */}
-                    {(msg.type === 'audio' || (msg.attachmentUrl && /\.(mp3|wav|ogg|m4a|opus|aac)(\?.*)?$/i.test(msg.attachmentUrl))) && (
+                    {/* Detectar se é áudio pelo tipo ou pela extensão do arquivo ou se começa com data:audio */}
+                    {(msg.type === 'audio' || (msg.attachmentUrl && (/\.(mp3|wav|ogg|m4a|opus|aac)(\?.*)?$/i.test(msg.attachmentUrl) || msg.attachmentUrl.startsWith('data:audio')))) && (
                       msg.attachmentUrl ? (
-                        <audio controls src={msg.attachmentUrl} className="max-w-full mb-1" />
+                        <div className="flex flex-col gap-2 min-w-[200px] py-1">
+                          <audio controls src={msg.attachmentUrl} className="w-full h-8" />
+                        </div>
                       ) : (
                         <div className="flex items-center gap-2 mb-1 opacity-70 text-sm italic">
-                          🎵 Áudio enviado
+                          <Mic className="w-4 h-4" /> Áudio enviado
                         </div>
                       )
                     )}
@@ -379,8 +381,10 @@ export function ChatWindow({
                     )}
 
                     {msg.type === 'text' && (
-                       <div className="space-y-2">
-                         <p className="text-sm break-words whitespace-pre-wrap">{msg.content}</p>
+                        <div className="space-y-2">
+                          <p className="text-sm break-words whitespace-pre-wrap">
+                            {msg.content?.replace(/\[AUDIO_RESPONSE\]/g, '').replace(/🎤/g, '').trim()}
+                          </p>
                          {/* Se for texto mas tiver um anexo que não foi pego acima, mostrar como link se não for áudio já exibido */}
                          {msg.attachmentUrl && !/\.(mp3|wav|ogg|m4a|opus|aac|jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(msg.attachmentUrl) && (
                             <a href={msg.attachmentUrl} target="_blank" rel="noreferrer" className="flex items-center gap-2 underline text-xs opacity-70">
