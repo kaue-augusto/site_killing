@@ -397,6 +397,7 @@ export default function Atendimentos() {
             conversation={selectedConversation}
             messages={messages}
             botId={selectedBot.id}
+            permitirAudio={selectedBot.permitir_audio ?? true}
             onSendMessage={handleSendMessage}
             isLoading={isLoadingMessages}
             onBack={() => setSelectedConversation(null)}

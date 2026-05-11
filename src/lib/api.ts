@@ -652,7 +652,7 @@ export async function generateWhatsAppQR(instanceId: string, token: string): Pro
 
 export async function saveBotTraining(
   botSlug: string,
-  config: { instructions: string, user_id: string; name?: string; mode?: string; exigir_matricula?: boolean, isAdmin?: boolean }
+  config: { instructions: string, user_id: string; name?: string; mode?: string; exigir_matricula?: boolean, permitir_audio?: boolean, isAdmin?: boolean }
 ): Promise<void> {
   let query = supabase
     .from('bots')
@@ -660,7 +660,8 @@ export async function saveBotTraining(
       instructions: config.instructions, 
       bot_name: config.name, 
       bot_mode: config.mode,
-      exigir_matricula: config.exigir_matricula 
+      exigir_matricula: config.exigir_matricula,
+      permitir_audio: config.permitir_audio
     })
     .eq('slug', botSlug);
 

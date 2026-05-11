@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Paperclip, Mic, Image, File, Check, CheckCheck, ChevronLeft, MoreVertical } from 'lucide-react';
+import { Send, Paperclip, Mic, Image, File as FileIcon, Check, CheckCheck, ChevronLeft, MoreVertical } from 'lucide-react';
 import { Message, Conversation, uploadPdfToGCP } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +11,7 @@ interface ChatWindowProps {
   conversation: Conversation | null;
   messages: Message[];
   botId?: string;
+  permitirAudio?: boolean;
   onSendMessage: (content: string, type: Message['type'], attachmentUrl?: string) => void;
   isLoading?: boolean;
   onBack?: () => void;
@@ -21,6 +22,7 @@ export function ChatWindow({
   conversation,
   messages,
   botId,
+  permitirAudio,
   onSendMessage,
   isLoading,
   onBack,
@@ -29,7 +31,12 @@ export function ChatWindow({
   const [inputValue, setInputValue] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [pendingFileType, setPendingFileType] = useState<Message['type']>('file');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -112,6 +119,93 @@ export function ChatWindow({
       setIsUploading(false);
       if (e.target) e.target.value = '';
     }
+  };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          audioChunksRef.current.push(e.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/ogg; codecs=opus' });
+        const audioFile = new File([audioBlob], `audio_${Date.now()}.ogg`, { type: 'audio/ogg' });
+        
+        setIsUploading(true);
+        try {
+          let audioUrl = '';
+          if (botId) {
+            const uploadResult = await uploadPdfToGCP(audioFile, botId, 'audio-messages');
+            audioUrl = uploadResult.url;
+          } else {
+            audioUrl = await fileToBase64(audioFile);
+          }
+          
+          await onSendMessage('Mensagem de áudio', 'audio', audioUrl);
+        } catch (error: any) {
+          console.error('Error sending audio:', error);
+          toast({
+            title: 'Erro no áudio',
+            description: 'Não foi possível enviar o áudio',
+            variant: 'destructive',
+          });
+        } finally {
+          setIsUploading(false);
+        }
+
+        // Parar todos os tracks do stream
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+      setRecordingTime(0);
+      
+      recordingIntervalRef.current = setInterval(() => {
+        setRecordingTime(prev => prev + 1);
+      }, 1000);
+    } catch (error) {
+      console.error('Error starting recording:', error);
+      toast({
+        title: 'Erro no microfone',
+        description: 'Não foi possível acessar o microfone',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      if (recordingIntervalRef.current) clearInterval(recordingIntervalRef.current);
+    }
+  };
+
+  const cancelRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current.onstop = null; // Ignorar o evento onstop
+      setIsRecording(false);
+      if (recordingIntervalRef.current) clearInterval(recordingIntervalRef.current);
+      
+      // Limpar stream
+      const stream = mediaRecorderRef.current.stream;
+      stream.getTracks().forEach(track => track.stop());
+    }
+  };
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -268,11 +362,11 @@ export function ChatWindow({
                     {(msg.type === 'document' || msg.type === 'file' || msg.type === 'pdf') && (
                       msg.attachmentUrl ? (
                         <a href={msg.attachmentUrl} target="_blank" rel="noreferrer" className="flex items-center gap-2 underline mb-1 font-semibold">
-                          <File className="w-4 h-4" /> {msg.content || 'Documento Anexado'}
+                          <FileIcon className="w-4 h-4" /> {msg.content || 'Documento Anexado'}
                         </a>
                       ) : (
                         <div className="flex items-center gap-2 mb-1 opacity-70 text-sm">
-                          <File className="w-4 h-4" /> {msg.content || 'Arquivo enviado'}
+                          <FileIcon className="w-4 h-4" /> {msg.content || 'Arquivo enviado'}
                         </div>
                       )
                     )}
@@ -346,33 +440,64 @@ export function ChatWindow({
             onClick={() => triggerFileSelect('file')}
             disabled={isUploading}
           >
-            <File className="w-5 h-5" />
+            <FileIcon className="w-5 h-5" />
           </Button>
-          <div className="flex-1 min-w-0 bg-secondary rounded-xl min-h-[44px] flex items-center px-4">
-            <Input
-              placeholder={isUploading ? "Enviando arquivo..." : "Digite uma mensagem..."}
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              onKeyPress={handleKeyPress}
-              className="flex-1 bg-transparent border-none focus-visible:ring-0 px-0"
-              disabled={isUploading}
-            />
+          <div className="flex-1 min-w-0 bg-secondary rounded-xl min-h-[44px] flex items-center px-4 relative">
+            {isRecording ? (
+              <div className="flex-1 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                  <span className="text-sm font-medium text-foreground">Gravando {formatTime(recordingTime)}</span>
+                </div>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="text-destructive h-8 px-2"
+                  onClick={cancelRecording}
+                >
+                  Cancelar
+                </Button>
+              </div>
+            ) : (
+              <Input
+                placeholder={isUploading ? "Enviando arquivo..." : "Digite uma mensagem..."}
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyPress={handleKeyPress}
+                className="flex-1 bg-transparent border-none focus-visible:ring-0 px-0"
+                disabled={isUploading}
+              />
+            )}
           </div>
 
-          {inputValue.trim() ? (
+          {isRecording ? (
+            <Button 
+              size="icon" 
+              onClick={stopRecording}
+              className="bg-red-500 hover:bg-red-600 text-white rounded-full h-10 w-10 shrink-0"
+            >
+              <Send className="w-5 h-5" />
+            </Button>
+          ) : inputValue.trim() ? (
             <Button 
               size="icon" 
               onClick={handleSend}
-              className="bg-primary text-primary-foreground rounded-full transition-all"
+              className="bg-primary text-primary-foreground rounded-full h-10 w-10 shrink-0 transition-all"
               disabled={isUploading || isSending}
             >
               <Send className={`w-5 h-5 ${isSending ? 'animate-pulse' : ''}`} />
             </Button>
-          ) : (
-            <Button variant="ghost" size="icon" className="text-muted-foreground shrink-0" disabled={isUploading || isSending}>
+          ) : permitirAudio ? (
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="text-muted-foreground hover:text-primary hover:bg-primary/10 shrink-0 h-10 w-10" 
+              disabled={isUploading || isSending}
+              onClick={startRecording}
+            >
               <Mic className="w-5 h-5" />
             </Button>
-          )}
+          ) : null}
         </div>
       </div>
     </div>

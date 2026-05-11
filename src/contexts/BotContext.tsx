@@ -61,6 +61,7 @@ export function BotProvider({ children }: { children: ReactNode }) {
           zapInstance: b.zapi_instance,
           zapToken: b.zap_token,
           exigir_matricula: b.exigir_matricula || false,
+          permitir_audio: (b as any).permitir_audio ?? true,
         }));
 
         setBots(mappedBots);

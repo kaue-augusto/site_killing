@@ -43,6 +43,7 @@ export default function Treinamento() {
   const [instructions, setInstructions] = useState('');
   const [botName, setBotName] = useState(selectedBot?.bot_name || '');
   const [autoTransfer, setAutoTransfer] = useState(true);
+  const [permitirAudio, setPermitirAudio] = useState(true);
   const [authorizationEnabled, setAuthorizationEnabled] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -297,6 +298,7 @@ export default function Treinamento() {
       setBotName(selectedBot.bot_name || '');
       setSelectedMode(selectedBot.mode || 'suporte');
       setAuthorizationEnabled(selectedBot.exigir_matricula || false);
+      setPermitirAudio((selectedBot as any).permitir_audio ?? true);
 
       // === Busca os PDFs ===
       const loadPdfs = async () => {
@@ -389,6 +391,7 @@ export default function Treinamento() {
         mode: selectedMode,
         user_id: user.id,
         exigir_matricula: authorizationEnabled,
+        permitir_audio: permitirAudio,
         isAdmin: isAdmin
       });
 
@@ -777,6 +780,19 @@ export default function Treinamento() {
                 <Switch
                   checked={autoTransfer}
                   onCheckedChange={setAutoTransfer}
+                />
+              </div>
+
+              <div className="flex items-center justify-between p-4 bg-secondary rounded-lg">
+                <div>
+                  <p className="font-medium text-foreground">Responder em Áudio</p>
+                  <p className="text-sm text-muted-foreground">
+                    Permitir que o bot ou atendentes enviem mensagens de áudio
+                  </p>
+                </div>
+                <Switch
+                  checked={permitirAudio}
+                  onCheckedChange={setPermitirAudio}
                 />
               </div>
             </CardContent>

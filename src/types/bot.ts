@@ -13,6 +13,7 @@ export interface Bot {
   zapInstance?: string; // Adicione esta linha
   zapToken?: string;
   exigir_matricula?: boolean;
+  permitir_audio?: boolean;
 }
 
 export interface WhatsAppConnection {
