@@ -14,7 +14,7 @@ export function MainLayout({ children }: MainLayoutProps) {
         <AppSidebar />
         <div className="flex-1 flex flex-col min-w-0">
           <TopBar />
-          <main className="flex-1 overflow-hidden">
+          <main className="flex-1 overflow-y-auto">
             {children}
           </main>
         </div>
