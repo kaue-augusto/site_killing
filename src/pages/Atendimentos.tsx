@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useBot } from '@/contexts/BotContext';
-import { supabase } from '@/lib/supabase'; // Certifique-se de que o caminho do seu client do Supabase está correto
+import { supabase } from '@/integrations/supabase/client';
 import {
   fetchConversations,
   fetchMessages,
