@@ -282,7 +282,7 @@ export function ChatWindow({
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-3 min-h-0">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-3 min-h-0 relative whatsapp-chat-bg">
         {isLoading ? (
           <div className="space-y-3">
             {[1, 2, 3].map((i) => (

@@ -5,6 +5,63 @@
 @tailwind utilities;
 @layer base {
   :root {
+    --background: 210 20% 98%;
+    --foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    --primary: 142.1 76.2% 36.3%;
+    --primary-foreground: 210 20% 98%;
+
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 20% 98%;
+
+    --success: 142.1 76.2% 36.3%;
+    --success-foreground: 210 20% 98%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 222.2 47.4% 11.2%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 142.1 76.2% 36.3%;
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 210 20% 98%;
+    --sidebar-foreground: 222.2 47.4% 11.2%;
+    --sidebar-primary: 142.1 76.2% 36.3%;
+    --sidebar-primary-foreground: 210 20% 98%;
+    --sidebar-accent: 210 40% 96.1%;
+    --sidebar-accent-foreground: 222.2 47.4% 11.2%;
+    --sidebar-border: 214.3 31.8% 91.4%;
+    --sidebar-ring: 142.1 76.2% 36.3%;
+
+    --chat-sent: 142.1 76.2% 36.3%;
+    --chat-sent-foreground: 210 20% 98%;
+    --chat-received: 210 40% 96.1%;
+    --chat-received-foreground: 222.2 47.4% 11.2%;
+    --chat-timestamp: 215.4 16.3% 46.9%;
+
+    --online: 142.1 76.2% 36.3%;
+    --offline: 220 10% 60%;
+    --away: 38 90% 50%;
+  }
+
+  .dark {
     --background: 220 20% 10%;
     --foreground: 210 20% 95%;
 
@@ -39,8 +96,6 @@
     --input: 220 15% 18%;
     --ring: 152 60% 45%;
 
-    --radius: 0.75rem;
-
     --sidebar-background: 220 20% 8%;
     --sidebar-foreground: 210 15% 70%;
     --sidebar-primary: 152 60% 45%;
@@ -51,7 +106,9 @@
     --sidebar-ring: 152 60% 45%;
 
     --chat-sent: 152 45% 25%;
+    --chat-sent-foreground: 210 20% 95%;
     --chat-received: 220 15% 18%;
+    --chat-received-foreground: 210 20% 95%;
     --chat-timestamp: 215 15% 50%;
 
     --online: 152 70% 50%;
@@ -68,6 +125,7 @@
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-family: 'Inter', sans-serif;
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
   }
 
   ::-webkit-scrollbar {
@@ -91,11 +149,11 @@
 
 @layer utilities {
   .chat-bubble-sent {
-    @apply bg-[hsl(var(--chat-sent))] text-foreground rounded-2xl rounded-br-sm;
+    @apply bg-[hsl(var(--chat-sent))] text-[hsl(var(--chat-sent-foreground))] rounded-2xl rounded-br-sm;
   }
 
   .chat-bubble-received {
-    @apply bg-[hsl(var(--chat-received))] text-foreground rounded-2xl rounded-bl-sm;
+    @apply bg-[hsl(var(--chat-received))] text-[hsl(var(--chat-received-foreground))] rounded-2xl rounded-bl-sm;
   }
 
   .status-badge {
@@ -104,5 +162,31 @@
 
   .glass-effect {
     @apply backdrop-blur-md bg-card/80;
+  }
+
+  .whatsapp-chat-bg {
+    position: relative;
+    background-color: #efeae2;
+    transition: background-color 0.2s ease;
+  }
+
+  .whatsapp-chat-bg::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png');
+    background-repeat: repeat;
+    opacity: 0.08;
+    pointer-events: none;
+    transition: opacity 0.2s ease, filter 0.2s ease;
+  }
+
+  .dark .whatsapp-chat-bg {
+    background-color: #0b141a;
+  }
+
+  .dark .whatsapp-chat-bg::before {
+    opacity: 0.04;
+    filter: invert(1);
   }
 }

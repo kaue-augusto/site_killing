@@ -163,12 +163,26 @@ export default function Dashboard() {
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
-                <Legend verticalAlign="bottom" height={36}/>
+                <Legend
+                  verticalAlign="bottom"
+                  height={36}
+                  formatter={(value, entry: any) => {
+                    const count = entry.payload?.count ?? 0;
+                    return `${value} (${count})`;
+                  }}
+                  className="text-foreground"
+                />
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: 'hsl(220, 18%, 13%)',
-                    border: '1px solid hsl(220, 15%, 22%)',
+                    backgroundColor: 'hsl(var(--card))',
+                    border: '1px solid hsl(var(--border))',
                     borderRadius: '8px',
+                  }}
+                  itemStyle={{
+                    color: 'hsl(var(--foreground))',
+                  }}
+                  labelStyle={{
+                    color: 'hsl(var(--muted-foreground))',
                   }}
                 />
               </PieChart>
@@ -187,26 +201,32 @@ export default function Dashboard() {
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={data.conversationsByAgent}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 15%, 22%)" />
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis
                   dataKey="agent"
-                  stroke="hsl(215, 15%, 55%)"
+                  stroke="hsl(var(--muted-foreground))"
                   fontSize={12}
                 />
                 <YAxis
-                  stroke="hsl(215, 15%, 55%)"
+                  stroke="hsl(var(--muted-foreground))"
                   fontSize={12}
                 />
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: 'hsl(220, 18%, 13%)',
-                    border: '1px solid hsl(220, 15%, 22%)',
+                    backgroundColor: 'hsl(var(--card))',
+                    border: '1px solid hsl(var(--border))',
                     borderRadius: '8px',
+                  }}
+                  itemStyle={{
+                    color: 'hsl(var(--foreground))',
+                  }}
+                  labelStyle={{
+                    color: 'hsl(var(--muted-foreground))',
                   }}
                 />
                 <Bar
                   dataKey="count"
-                  fill="hsl(152, 60%, 45%)"
+                  fill="hsl(var(--primary))"
                   radius={[4, 4, 0, 0]}
                 />
               </BarChart>
@@ -226,35 +246,41 @@ export default function Dashboard() {
         <CardContent>
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={data.slaMetrics}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 15%, 22%)" />
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
               <XAxis
                 dataKey="period"
-                stroke="hsl(215, 15%, 55%)"
+                stroke="hsl(var(--muted-foreground))"
                 fontSize={12}
               />
               <YAxis
-                stroke="hsl(215, 15%, 55%)"
+                stroke="hsl(var(--muted-foreground))"
                 fontSize={12}
               />
               <Tooltip
                 contentStyle={{
-                  backgroundColor: 'hsl(220, 18%, 13%)',
-                  border: '1px solid hsl(220, 15%, 22%)',
+                  backgroundColor: 'hsl(var(--card))',
+                  border: '1px solid hsl(var(--border))',
                   borderRadius: '8px',
+                }}
+                itemStyle={{
+                  color: 'hsl(var(--foreground))',
+                }}
+                labelStyle={{
+                  color: 'hsl(var(--muted-foreground))',
                 }}
               />
               <Line
                 type="monotone"
                 dataKey="avgResponseTime"
-                stroke="hsl(152, 60%, 45%)"
+                stroke="hsl(var(--primary))"
                 strokeWidth={2}
-                dot={{ fill: 'hsl(152, 60%, 45%)', strokeWidth: 2 }}
+                dot={{ fill: 'hsl(var(--primary))', strokeWidth: 2 }}
                 name="Tempo Real"
               />
               <Line
                 type="monotone"
                 dataKey="target"
-                stroke="hsl(0, 70%, 50%)"
+                stroke="hsl(var(--destructive))"
                 strokeWidth={2}
                 strokeDasharray="5 5"
                 dot={false}

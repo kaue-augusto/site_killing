@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { BotProvider } from "@/contexts/BotContext";
+import { ThemeProvider } from "@/contexts/ThemeContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { MainLayout } from "@/components/layout/MainLayout";
 import Login from "./pages/Login";
@@ -23,9 +24,10 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <AuthProvider>
-        <BotProvider>
+    <ThemeProvider defaultTheme="dark">
+      <TooltipProvider>
+        <AuthProvider>
+          <BotProvider>
           <Toaster />
           <Sonner />
           <BrowserRouter>
@@ -123,7 +125,8 @@ const App = () => (
         </BotProvider>
       </AuthProvider>
     </TooltipProvider>
-  </QueryClientProvider>
+  </ThemeProvider>
+</QueryClientProvider>
 );
 
 export default App;
